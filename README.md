@@ -34,11 +34,13 @@ src/
   collector/collect.ts  ambil postingan baru → tabel source_posts
   extraction/gemini.ts  baca poster + caption dengan Gemini → JSON lowongan
   extraction/process.ts proses source_posts pending → jobs (draft)
+  pipeline/run.ts     satu putaran otomatis: collect lalu extract
 scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
 scripts/review.ts     CLI cek dan publish lowongan draft
+scripts/pipeline.ts   pipeline otomatis (collect + extract) dengan polling
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
@@ -106,6 +108,22 @@ bun run extract --limit 50
 Status `source_posts`: `processed` (ada lowongan), `no_jobs` (bukan lowongan, mis. iklan),
 `failed` (dicoba ulang hingga 3 kali). Jika Gemini sedang sibuk (503) atau kuota habis (429),
 run berhenti tanpa menghabiskan jatah percobaan postingan. Jalankan lagi nanti.
+
+## Pipeline otomatis
+
+Menggabungkan collect dan extract: setiap putaran mengambil postingan baru @lokerlombok lalu
+mengekstrak lowongan dari postingan `pending` (maks. `EXTRACT_BATCH`, default 20) sebagai draft.
+
+```bash
+bun run pipeline        # terus berjalan, satu putaran tiap PIPELINE_CRON (default */15 * * * *)
+bun run pipeline:once   # satu putaran lalu keluar (untuk cron/scheduler eksternal)
+```
+
+- Putaran berikutnya dilewati jika putaran sebelumnya belum selesai.
+- Jika collect gagal (mis. token Instagram kedaluwarsa, error 190), extract tetap memproses
+  postingan yang sudah tersimpan, dan log menyebut bahwa token perlu diperbarui.
+- Postingan yang sudah diproses tidak diekstrak ulang; lowongan tetap draft sampai di-review.
+- Proses harus terus hidup agar otomatis: jalankan di server/hosting, bukan terminal yang ditutup.
 
 ## Review dan publish
 

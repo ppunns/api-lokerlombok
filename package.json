@@ -13,7 +13,9 @@
     "collect": "bun scripts/collect.ts",
     "collect:watch": "bun scripts/collect.ts --watch",
     "extract": "bun scripts/extract.ts",
-    "review": "bun scripts/review.ts"
+    "review": "bun scripts/review.ts",
+    "pipeline": "bun scripts/pipeline.ts",
+    "pipeline:once": "bun scripts/pipeline.ts --once"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",
