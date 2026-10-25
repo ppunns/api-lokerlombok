@@ -9,6 +9,7 @@ const job = (title: string): Extraction["jobs"][number] => ({
   title,
   company_name: "PT Contoh",
   location: "Mataram",
+  regencies: ["kota_mataram"],
   description: null,
   requirements: null,
   employment_type: null,
@@ -68,6 +69,23 @@ describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
     ]);
     expect(await status("1")).toEqual({ processing_status: "processed", processing_error: null, processing_attempts: 1 });
     expect(await status("2")).toMatchObject({ processing_status: "no_jobs" });
+  });
+
+  test("re-extraction removes leftover drafts but keeps reviewed jobs", async () => {
+    await addPost("1", "first");
+    const three = { is_job_post: true, ocr_text: null, jobs: [job("A"), job("B"), job("C")] };
+    await processPendingPosts({ sql, extract: fakeExtractor({ first: three }), limit: 10, loadImage });
+    await sql`update public.jobs set publication_status = 'published' where source_job_index = 2`;
+
+    await sql`update public.source_posts set processing_status = 'pending'`;
+    const one = { is_job_post: true, ocr_text: null, jobs: [job("A2")] };
+    await processPendingPosts({ sql, extract: fakeExtractor({ first: one }), limit: 10, loadImage });
+
+    const rows = await sql`select title, source_job_index, publication_status from public.jobs order by source_job_index`;
+    expect(rows).toEqual([
+      { title: "A2", source_job_index: 0, publication_status: "draft" },
+      { title: "C", source_job_index: 2, publication_status: "published" },
+    ]);
   });
 
   test("marks invalid extractions and errors as failed, retrying up to MAX_ATTEMPTS", async () => {

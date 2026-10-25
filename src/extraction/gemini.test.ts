@@ -9,6 +9,7 @@ const extraction: Extraction = {
       title: "Kasir",
       company_name: null,
       location: "Mataram",
+      regencies: ["kota_mataram"],
       description: null,
       requirements: ["SMA/SMK"],
       employment_type: null,

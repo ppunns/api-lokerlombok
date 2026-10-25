@@ -15,6 +15,7 @@ describe("jobInsertSchema", () => {
       title: "Staff Admin",
       company_name: null,
       location: null,
+      regencies: [],
       requirements: null,
       employment_type: null,
       salary_min: null,
@@ -82,6 +83,7 @@ describe("jobInsertSchema", () => {
     expect(jobInsertSchema.safeParse({ ...minimalJob, employment_type: "fulltime" }).success).toBe(false);
     expect(jobInsertSchema.safeParse({ ...minimalJob, education_level: "SMA" }).success).toBe(false);
     expect(jobInsertSchema.safeParse({ ...minimalJob, publication_status: "live" }).success).toBe(false);
+    expect(jobInsertSchema.safeParse({ ...minimalJob, regencies: ["loteng"] }).success).toBe(false);
   });
 
   test("rejects invalid dates and urls", () => {

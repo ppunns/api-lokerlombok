@@ -77,6 +77,20 @@ describe.skipIf(!testDatabaseUrl)("jobs repository (database)", () => {
     expect(await titles({ location: "mataram", education_level: "s1", employment_type: "part_time" })).toEqual(["B"]);
   });
 
+  test("filters by regency, including jobs that cover several regencies", async () => {
+    await upsertJobs(sql, [
+      make({ title: "Praya", regencies: ["lombok_tengah"] }),
+      make({ title: "Loteng-Lotim", regencies: ["lombok_tengah", "lombok_timur"] }),
+      make({ title: "Mataram", regencies: ["kota_mataram"] }),
+      make({ title: "Tanpa lokasi" }),
+    ]);
+    const titles = async (regency: string) => (await search({ regency })).jobs.map((j) => j.title).sort();
+    expect(await titles("lombok_tengah")).toEqual(["Loteng-Lotim", "Praya"]);
+    expect(await titles("lombok_timur")).toEqual(["Loteng-Lotim"]);
+    expect(await titles("lombok_utara")).toEqual([]);
+    expect((await search()).jobs.find((j) => j.title === "Loteng-Lotim")?.regencies).toEqual(["lombok_tengah", "lombok_timur"]);
+  });
+
   test("paginates newest first, keeping jobs of one post in order", async () => {
     await upsertJobs(sql, [
       make({ title: "Lama", source_posted_at: "2026-10-01T00:00:00Z" }),

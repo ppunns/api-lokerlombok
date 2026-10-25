@@ -3,8 +3,15 @@
     "title": "Staff Administrasi",
     "company_name": "PT Contoh Maju Lombok",
     "location": "Mataram",
+    "regencies": [
+      "kota_mataram"
+    ],
     "description": "Mengelola dokumen, arsip, dan input data harian kantor.",
-    "requirements": ["Pendidikan minimal SMA/SMK", "Menguasai Microsoft Office", "Teliti dan rapi"],
+    "requirements": [
+      "Pendidikan minimal SMA/SMK",
+      "Menguasai Microsoft Office",
+      "Teliti dan rapi"
+    ],
     "employment_type": "full_time",
     "education_level": "sma_smk",
     "salary_min": 2500000,
@@ -24,7 +31,13 @@
     "title": "Kasir",
     "company_name": "PT Contoh Maju Lombok",
     "location": "Mataram",
-    "requirements": ["Pendidikan minimal SMA/SMK", "Jujur dan ramah"],
+    "regencies": [
+      "kota_mataram"
+    ],
+    "requirements": [
+      "Pendidikan minimal SMA/SMK",
+      "Jujur dan ramah"
+    ],
     "employment_type": "full_time",
     "education_level": "sma_smk",
     "salary_text": "Gaji sesuai UMK",
@@ -42,8 +55,14 @@
     "title": "Barista",
     "company_name": "Kopi Contoh Senggigi",
     "location": "Senggigi, Lombok Barat",
+    "regencies": [
+      "lombok_barat"
+    ],
     "description": "Menyiapkan minuman kopi dan melayani pelanggan.",
-    "requirements": ["Berpengalaman minimal 1 tahun", "Bersedia kerja shift"],
+    "requirements": [
+      "Berpengalaman minimal 1 tahun",
+      "Bersedia kerja shift"
+    ],
     "employment_type": "part_time",
     "source_account": "contoh_data",
     "source_post_url": "https://www.instagram.com/p/CONTOH002/",
@@ -57,7 +76,13 @@
     "title": "Perawat",
     "company_name": "Klinik Contoh Sehat",
     "location": "Praya, Lombok Tengah",
-    "requirements": ["D3 Keperawatan", "Memiliki STR aktif"],
+    "regencies": [
+      "lombok_tengah"
+    ],
+    "requirements": [
+      "D3 Keperawatan",
+      "Memiliki STR aktif"
+    ],
     "employment_type": "contract",
     "education_level": "d3",
     "salary_min": 3500000,
@@ -76,6 +101,9 @@
     "title": "Guru Bahasa Inggris",
     "company_name": "Lembaga Kursus Contoh",
     "location": "Selong, Lombok Timur",
+    "regencies": [
+      "lombok_timur"
+    ],
     "employment_type": "part_time",
     "education_level": "s1",
     "source_account": "contoh_data",
@@ -90,7 +118,13 @@
     "title": "Magang Desain Grafis",
     "company_name": "Studio Contoh Kreatif",
     "location": "Mataram",
-    "requirements": ["Mahasiswa aktif atau fresh graduate", "Bisa Figma atau Canva"],
+    "regencies": [
+      "kota_mataram"
+    ],
+    "requirements": [
+      "Mahasiswa aktif atau fresh graduate",
+      "Bisa Figma atau Canva"
+    ],
     "employment_type": "internship",
     "source_account": "contoh_data",
     "source_post_url": "https://www.instagram.com/p/CONTOH005/",

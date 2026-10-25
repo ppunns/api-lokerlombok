@@ -8,6 +8,7 @@ const job: PublicJob = {
   title: "Staff Admin",
   company_name: "PT Contoh Lombok",
   location: "Mataram",
+  regencies: ["kota_mataram"],
   description: null,
   requirements: null,
   employment_type: "full_time",
@@ -53,12 +54,13 @@ describe("GET /jobs", () => {
   test("passes validated filters to the repository", async () => {
     const { app, calls } = setup();
     const res = await app.request(
-      "/jobs?q=%20admin%20&location=Mataram&employment_type=full_time&education_level=s1&page=2&limit=10&utm=x",
+      "/jobs?q=%20admin%20&location=Mataram&regency=lombok_tengah&employment_type=full_time&education_level=s1&page=2&limit=10&utm=x",
     );
     expect(res.status).toBe(200);
     expect(calls[0]).toEqual({
       q: "admin",
       location: "Mataram",
+      regency: "lombok_tengah",
       employment_type: "full_time",
       education_level: "s1",
       page: 2,
@@ -77,6 +79,7 @@ describe("GET /jobs", () => {
     ["limit=51", "limit"],
     ["page=abc", "page"],
     ["employment_type=fulltime", "employment_type"],
+    ["regency=loteng", "regency"],
     [`q=${"a".repeat(101)}`, "q"],
   ])("rejects invalid query %s", async (query, field) => {
     const { app, calls } = setup();

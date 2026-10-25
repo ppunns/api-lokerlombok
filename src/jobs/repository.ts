@@ -14,7 +14,7 @@ export function toLikePattern(value: string): string {
 export function createJobsRepository(sql: SQL): JobsRepository {
   // Casts keep JSON output stable: bigint -> number, date -> "YYYY-MM-DD".
   const columns = sql`
-    id, title, company_name, location, description, requirements,
+    id, title, company_name, location, regencies, description, requirements,
     employment_type, education_level,
     salary_min::float8 as salary_min, salary_max::float8 as salary_max, salary_text,
     deadline::text as deadline,
@@ -30,6 +30,7 @@ export function createJobsRepository(sql: SQL): JobsRepository {
         filters.push(sql`and (title ilike ${pattern} or company_name ilike ${pattern} or description ilike ${pattern})`);
       }
       if (query.location) filters.push(sql`and location ilike ${toLikePattern(query.location)}`);
+      if (query.regency) filters.push(sql`and ${query.regency} = any(regencies)`);
       if (query.employment_type) filters.push(sql`and employment_type = ${query.employment_type}`);
       if (query.education_level) filters.push(sql`and education_level = ${query.education_level}`);
 

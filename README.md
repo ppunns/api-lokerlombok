@@ -53,7 +53,8 @@ Hanya lowongan `published` yang tampil. `raw_caption`, `ocr_text`, `extraction_s
 - `GET /health` → `{ "status": "ok" }`
 - `GET /jobs`: cari lowongan, terbaru dulu. Query (semua opsional):
   - `q`: cari di judul, perusahaan, deskripsi (maks 100 karakter)
-  - `location`: cocok sebagian, tidak peka huruf besar/kecil
+  - `location`: cocok sebagian dengan teks lokasi asli, tidak peka huruf besar/kecil
+  - `regency`: kabupaten/kota, mis. `kota_mataram`, `lombok_tengah` (daftar di [docs/database.md](docs/database.md))
   - `employment_type`, `education_level`: nilai enum, lihat [docs/database.md](docs/database.md)
   - `page` (default 1), `limit` (default 20, maks 50)
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { educationLevels, employmentTypes } from "../schemas/job";
+import { educationLevels, employmentTypes, regencies } from "../schemas/job";
 
 // What the model returns for one post. Everything not explicitly stated must be null.
 export const extractionSchema = z.object({
@@ -10,6 +10,7 @@ export const extractionSchema = z.object({
       title: z.string(),
       company_name: z.string().nullable(),
       location: z.string().nullable(),
+      regencies: z.array(z.enum(regencies)),
       description: z.string().nullable(),
       requirements: z.array(z.string()).nullable(),
       employment_type: z.enum(employmentTypes).nullable(),
@@ -34,6 +35,10 @@ You get the caption, the post date, and the poster image(s). Rules:
 - Use only information explicitly present in the caption or images. Use null when something is not stated.
   Never guess or invent a company, location, salary, requirements, or deadline.
 - Keep Indonesian wording as written. title is the position name.
+- location: the work location as written. regencies: the NTB kabupaten/kota of that stated location
+  (town, kecamatan, address, or names like Loteng = Lombok Tengah, Lotim = Lombok Timur, Lobar = Lombok Barat,
+  KLU = Lombok Utara). Kota Mataram (incl. Cakranegara, Ampenan, Sekarbela, Selaparang, Sandubaya) is not Lombok Barat.
+  List several if the job covers several regencies; [] if no location is stated or it is outside NTB.
 - description: short summary of duties if stated, followed by how to apply (email, WhatsApp, address) if stated.
 - requirements: the listed requirement items, or null.
 - employment_type only if explicit: tetap/full time -> full_time, part time -> part_time, kontrak -> contract,

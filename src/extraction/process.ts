@@ -119,6 +119,14 @@ export async function processPendingPosts({
 
     await sql.begin(async (tx) => {
       if (jobs.length) await upsertJobs(tx, jobs);
+      // On re-extraction, drop leftover drafts beyond the new job count; reviewed jobs are kept.
+      if (outcome !== "failed") {
+        await tx`
+          delete from public.jobs
+          where source_platform = 'instagram' and source_post_id = ${post.source_post_id}
+            and source_job_index >= ${jobs.length} and publication_status = 'draft'
+        `;
+      }
       await tx`
         update public.source_posts
         set processing_status = ${outcome}, processing_error = ${error?.slice(0, 1000) ?? null},

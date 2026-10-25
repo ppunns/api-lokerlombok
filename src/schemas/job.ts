@@ -3,6 +3,19 @@ import { z } from "zod";
 // Enum values must stay in sync with the CHECK constraints in supabase/migrations.
 export const employmentTypes = ["full_time", "part_time", "contract", "internship", "freelance"] as const;
 export const educationLevels = ["sd", "smp", "sma_smk", "d1", "d2", "d3", "d4", "s1", "s2", "s3"] as const;
+// Kabupaten/kota in NTB, used to filter by region.
+export const regencies = [
+  "kota_mataram",
+  "lombok_barat",
+  "lombok_tengah",
+  "lombok_timur",
+  "lombok_utara",
+  "sumbawa_barat",
+  "sumbawa",
+  "dompu",
+  "bima",
+  "kota_bima",
+] as const;
 export const sourcePlatforms = ["instagram"] as const;
 export const extractionStatuses = ["pending", "extracted", "failed"] as const;
 export const publicationStatuses = ["draft", "published", "rejected", "expired"] as const;
@@ -16,6 +29,8 @@ const jobFields = z.object({
   title: text,
   company_name: optionalText,
   location: optionalText,
+  // Normalized from `location`; empty when unknown or outside NTB.
+  regencies: z.array(z.enum(regencies)).default([]),
   description: optionalText,
   requirements: z.array(text).nullable().default(null),
   employment_type: z.enum(employmentTypes).nullable().default(null),
@@ -63,6 +78,7 @@ const searchText = z.preprocess(
 export const jobSearchQuerySchema = z.object({
   q: searchText,
   location: searchText,
+  regency: z.enum(regencies).optional(),
   employment_type: z.enum(employmentTypes).optional(),
   education_level: z.enum(educationLevels).optional(),
   page: z.coerce.number().int().min(1).default(1),

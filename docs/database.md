@@ -12,6 +12,7 @@ Nilai enum di keduanya harus selalu sama.
 | `id` | uuid | auto | Primary key |
 | `title` | text | ya | Posisi, tidak boleh kosong |
 | `company_name`, `location`, `description` | text | – | |
+| `regencies` | text[] | default `{}` | Kabupaten/kota NTB dari lokasi: `kota_mataram`, `lombok_barat`, `lombok_tengah`, `lombok_timur`, `lombok_utara`, `sumbawa_barat`, `sumbawa`, `dompu`, `bima`, `kota_bima`. Bisa lebih dari satu; kosong jika lokasi tidak disebut atau di luar NTB. `location` tetap menyimpan teks asli |
 | `requirements` | text[] | – | Daftar persyaratan |
 | `employment_type` | text | – | `full_time`, `part_time`, `contract`, `internship`, `freelance` |
 | `education_level` | text | – | Pendidikan minimal: `sd`, `smp`, `sma_smk`, `d1`–`d4`, `s1`–`s3` |
