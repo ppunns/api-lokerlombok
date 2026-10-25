@@ -27,3 +27,36 @@ describe("app", () => {
     expect(await res.json()).toEqual({ error: "Internal Server Error" });
   });
 });
+
+describe("CORS", () => {
+  const repo: JobsRepository = {
+    search: async () => ({ jobs: [], total: 0 }),
+    findPublishedById: async () => null,
+  };
+
+  test("allows any origin by default for GET", async () => {
+    const res = await createApp({ jobs: repo }).request("/jobs", { headers: { Origin: "https://frontend.example" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  test("answers preflight with GET only", async () => {
+    const res = await createApp({ jobs: repo }).request("/jobs", {
+      method: "OPTIONS",
+      headers: { Origin: "https://frontend.example", "Access-Control-Request-Method": "GET" },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Methods")).toBe("GET");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  test("restricts to configured origins", async () => {
+    const app = createApp({ jobs: repo, corsOrigins: ["https://lokerlombok.example"] });
+    const allowed = await app.request("/jobs", { headers: { Origin: "https://lokerlombok.example" } });
+    expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("https://lokerlombok.example");
+    expect(allowed.headers.get("Vary")).toContain("Origin");
+
+    const other = await app.request("/jobs", { headers: { Origin: "https://evil.example" } });
+    expect(other.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+});

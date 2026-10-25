@@ -52,6 +52,9 @@ docs/instagram-access.md  validasi akses Instagram (Business Discovery)
 Hanya lowongan `published` yang tampil. `raw_caption`, `ocr_text`, `extraction_status`, dan
 `publication_status` tidak dikirim ke publik.
 
+CORS: hanya `GET` yang diizinkan lintas origin. Default semua origin (`*`). Batasi dengan
+`CORS_ORIGINS=https://domain-frontend,...` saat frontend sudah punya domain.
+
 - `GET /health` → `{ "status": "ok" }`
 - `GET /jobs`: cari lowongan, terbaru dulu. Query (semua opsional):
   - `q`: cari di judul, perusahaan, deskripsi (maks 100 karakter)
