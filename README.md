@@ -45,6 +45,7 @@ data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
 docs/instagram-access.md  validasi akses Instagram (Business Discovery)
+docs/frontend-prompt.md   kontrak API + brief untuk pengembangan frontend
 ```
 
 ## API
