@@ -126,12 +126,42 @@ Respons 200:
    - Deadline: "29 Okt 2026"; tandai "Ditutup" bila sudah lewat (bandingkan tanggal WITA).
      Lowongan yang ditutup tetap bisa muncul di API.
    - Field `null` disembunyikan, jangan tampilkan "null" atau mengisi dengan tebakan.
-8. **Peringatan penipuan**: teks singkat di halaman detail, misalnya "Selalu cek kebenaran lowongan.
-   Jangan pernah membayar untuk melamar kerja."
+8. **Halaman Tentang dan peringatan**: halaman `/tentang`, disclaimer di footer, dan peringatan di
+   halaman detail. Pakai teks dari bagian "Copywriting" di bawah, jangan mengarang sendiri.
 9. **Responsif dan mobile-first**: kebanyakan pengguna membuka dari HP. Aksesibel (label form,
    kontras, navigasi keyboard).
 10. **Test**: unit test untuk formatter (gaji, tanggal, label) dan API client (mock `fetch`),
     memakai `bun test`.
+
+## Copywriting
+
+Gaya bahasa: santai, jelas, dan langsung ke poin. Pakai "kamu" untuk pengguna dan "kami" untuk
+Loker Lombok. Hindari bahasa kaku seperti "Anda" atau "dengan ini".
+
+### Halaman Tentang (`/tentang`)
+
+> **Cari kerja di Lombok, tanpa scroll Instagram berjam-jam.**
+>
+> Loker Lombok mengumpulkan info lowongan dari sumber publik, seperti akun Instagram info loker,
+> lalu merapikannya supaya gampang dicari, dibaca, dan difilter berdasarkan lokasi, pendidikan,
+> dan jenis kerja.
+>
+> **Sebelum melamar, perhatikan ini**
+>
+> - **Kami pengumpul info, bukan perekrut.** Kami tidak menjamin setiap lowongan benar atau masih dibuka.
+> - **Cek ulang di sumber aslinya.** Setiap lowongan punya tautan ke postingan aslinya, jadi kamu bisa verifikasi sendiri.
+> - **Lamar kerja itu gratis.** Waspada kalau diminta bayar biaya pendaftaran atau mengirim data
+>   sensitif seperti foto KTP, nomor rekening, atau kode OTP.
+
+### Footer (semua halaman)
+
+> Loker Lombok mengumpulkan info lowongan dari sumber publik dan bukan perekrut. Cek postingan
+> aslinya sebelum melamar, dan jangan pernah membayar untuk melamar kerja.
+
+### Halaman detail (dekat tombol "Lihat postingan asli di Instagram")
+
+> ⚠️ Info ini dirangkum dari postingan publik dan bisa saja tidak lengkap atau sudah berubah. Cek
+> postingan aslinya dulu, dan jangan pernah membayar untuk melamar.
 
 ## Di luar cakupan (jangan dibuat)
 
