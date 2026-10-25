@@ -16,7 +16,7 @@ const env = z
     IG_TARGET_USERNAME: z.string().min(1).default("lokerlombok"),
     GEMINI_API_KEY: z.string().min(1),
     GEMINI_MODEL: z.string().default("gemini-3.1-flash-lite"),
-    GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite"),
+    GEMINI_FALLBACK_MODEL: z.string().default("gemini-3.5-flash-lite"),
     PIPELINE_CRON: z.string().default("*/15 * * * *"),
     EXTRACT_BATCH: z.coerce.number().int().min(1).max(100).default(20),
   })

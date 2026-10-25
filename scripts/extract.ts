@@ -10,7 +10,7 @@ const env = z
   .object({
     GEMINI_API_KEY: z.string().min(1),
     GEMINI_MODEL: z.string().default("gemini-3.1-flash-lite"),
-    GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite"),
+    GEMINI_FALLBACK_MODEL: z.string().default("gemini-3.5-flash-lite"),
   })
   .parse(Bun.env);
 

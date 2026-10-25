@@ -107,7 +107,7 @@ bun run extract --limit 50
 
 Status `source_posts`: `processed` (ada lowongan), `no_jobs` (bukan lowongan, mis. iklan),
 `failed` (dicoba ulang hingga 3 kali). Jika model utama sibuk (503), request itu dikirim ke model
-cadangan `GEMINI_FALLBACK_MODEL` (default `gemini-2.5-flash-lite`, free tier). Error lain, termasuk
+cadangan `GEMINI_FALLBACK_MODEL` (default `gemini-3.5-flash-lite`, free tier). Error lain, termasuk
 kuota habis (429), tidak memakai cadangan. Jika keduanya tetap sibuk atau kuota habis, run berhenti
 tanpa menghabiskan jatah percobaan postingan. Jalankan lagi nanti. Ekstraksi ulang tidak pernah
 menimpa lowongan yang sudah di-publish atau di-reject.
