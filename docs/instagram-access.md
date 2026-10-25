@@ -1,8 +1,28 @@
 # Validasi akses Instagram
 
-Status: **belum tervalidasi dengan request nyata**. Dokumen ini merangkum dokumentasi resmi
-Meta (dicek 25 Oktober 2026) dan langkah untuk membuktikannya. Collector belum boleh dibuat
-sebelum `scripts/check-instagram.ts` berhasil.
+Status: **tervalidasi 25 Oktober 2026**. @lokerlombok bisa dibaca lewat Business Discovery
+dari akun @ppunns_ (Page "Evo"). Hasil uji ada di bagian "Hasil uji".
+
+## Keputusan (25 Oktober 2026)
+
+Pakai **Business Discovery + polling**. Instagram tidak punya webhook untuk postingan baru
+akun lain, jadi collector mengecek secara berkala. Scraper sendiri dan layanan scraping pihak
+ketiga tidak dipakai (alasannya di bagian "Yang tidak dilakukan").
+
+Rancangan collector (dibuat setelah validasi berhasil):
+
+```
+cron tiap 15–30 menit
+  → Business Discovery: N postingan terbaru @lokerlombok
+  → lewati postingan yang sudah tercatat di tabel source_posts
+  → catat postingan baru (status: pending)
+  → OCR → AI extraction → validasi Zod → upsert ke jobs (satu postingan → 0..n lowongan)
+  → update status source_posts (processed / no_jobs / failed)
+```
+
+Tabel `source_posts` diperlukan karena tidak semua postingan berisi lowongan, dan postingan
+yang gagal diproses harus bisa dicoba ulang. Pengambilan data (client Business Discovery)
+dipisah dari logika pemrosesan supaya bisa dites tanpa Instagram.
 
 ## Jalur resmi: Business Discovery API
 
@@ -76,12 +96,27 @@ Pagination memakai cursor `before`/`after` (tanpa `next`/`previous`).
    Token dari Explorer berumur pendek (sekitar 1 jam). Token jangka panjang baru diurus saat
    membuat collector.
 
-## Hasil yang perlu dicatat setelah uji
+## Hasil uji (25 Oktober 2026, sampel 50 postingan terbaru)
 
-- Apakah @lokerlombok terbaca (atau error, mis. `#110` / akun bukan Business).
-- Berapa persen postingan yang informasi lowongannya ada di caption, dan berapa yang hanya di gambar.
-- Apakah carousel (`children`) sering dipakai.
-- Nilai header rate limit setelah beberapa request.
+- Akun terbaca: @lokerlombok "Loker Lombok", 7.155 postingan; `media_url` tersedia untuk gambar.
+- Frekuensi: 50 postingan dalam ±3,5 hari (sekitar 14 per hari), sering beruntun dalam hitungan detik.
+- Tipe: 46 `IMAGE`, 4 `CAROUSEL_ALBUM`.
+- **46 dari 50 caption identik** (template sapaan + hashtag tanpa info lowongan). Informasi
+  lowongan hampir selalu hanya ada di **gambar**, sehingga **OCR wajib**.
+- Sebagian kecil caption berisi lowongan lengkap (posisi, syarat, kontak, deadline).
+- Ada postingan **iklan non-lowongan** (mis. promo kecantikan), sehingga ekstraksi harus bisa
+  menghasilkan 0 lowongan (status `no_jobs`).
+- Rate limit: header `x-app-usage` `call_count` 12 (% dari batas app) setelah sekitar 10 request
+  uji. Polling tiap 15 menit (±96 request/hari) jauh di bawah batas.
+- Token dari Graph API Explorer berumur sekitar 1–2 jam. Collector butuh **token jangka panjang**
+  (long-lived user token 60 hari, atau system user token), dan ini diurus saat membuat collector.
+
+### Kendala setup yang ditemui
+
+Token sempat tidak memegang Page apa pun (`me/accounts` kosong, granular scopes tanpa target)
+walaupun Page dan Instagram sudah terhubung. Teratasi setelah izin app di-reset dan Page dipilih
+ulang saat generate token. Jika terjadi lagi, cek `me/accounts?fields=name,instagram_business_account`
+di Explorer sebelum menyalin token.
 
 ## Sumber
 
