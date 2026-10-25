@@ -9,7 +9,9 @@
     "test": "bun test",
     "typecheck": "bun check",
     "seed": "bun scripts/seed.ts",
-    "seed:clean": "bun scripts/seed.ts --clean"
+    "seed:clean": "bun scripts/seed.ts --clean",
+    "collect": "bun scripts/collect.ts",
+    "collect:watch": "bun scripts/collect.ts --watch"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

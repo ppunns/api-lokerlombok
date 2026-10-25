@@ -29,8 +29,11 @@ src/
   jobs/routes.ts      handler GET /jobs dan GET /jobs/:id
   jobs/repository.ts  query SQL (Bun.sql)
   jobs/import.ts      validasi dan upsert data input
+  instagram/client.ts client Business Discovery (Instagram Graph API)
+  collector/collect.ts  ambil postingan baru → tabel source_posts
 scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
+scripts/collect.ts    CLI collector (sekali jalan / --watch)
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
@@ -67,6 +70,21 @@ dengan sumber yang sama (`source_platform`, `source_post_id`, `source_job_index`
 bukan diduplikasi, jadi aman dijalankan ulang. Data contoh bersifat fiktif. Hapus dengan
 `seed:clean` sebelum website dibuka untuk publik.
 
+## Collector Instagram
+
+Mengambil postingan terbaru @lokerlombok lewat Business Discovery dan menyimpannya ke tabel
+`source_posts` dengan status `pending` (OCR/ekstraksi lowongan belum ada). Butuh `IG_USER_ID` dan
+`IG_ACCESS_TOKEN` di `.env` (lihat [docs/instagram-access.md](docs/instagram-access.md)).
+
+```bash
+bun run collect        # sekali jalan (untuk cron/scheduler eksternal)
+bun run collect:watch  # terus berjalan, polling sesuai COLLECT_CRON (default tiap 15 menit)
+```
+
+Tiap run mengambil 25 postingan per halaman dan berhenti di halaman yang berisi postingan yang
+sudah tercatat, maksimal 4 halaman (100 postingan). Jadi run pertama hanya mengambil sekitar
+satu minggu terakhir, bukan seluruh riwayat akun. Postingan yang sama tidak pernah tersimpan dua kali.
+
 ## Testing
 
 ```bash
@@ -74,13 +92,13 @@ bun test           # unit test (tanpa database)
 bun run typecheck  # type check
 ```
 
-Integration test repository (`src/jobs/repository.db.test.ts`) berjalan hanya jika
-`TEST_DATABASE_URL` diisi. Test ini mengosongkan tabel `jobs`, jadi hanya mau berjalan ke
-database lokal (`localhost`). Dengan Postgres lokal:
+Integration test database (`*.db.test.ts`) berjalan hanya jika `TEST_DATABASE_URL` diisi.
+Test ini mengosongkan tabel, jadi hanya mau berjalan ke database lokal (`localhost`).
+Dengan Postgres lokal:
 
 ```bash
 createdb loker_test
 psql -d loker_test -c "create role anon; create role authenticated;"  # role bawaan Supabase
-psql -d loker_test -f supabase/migrations/20261025000000_create_jobs.sql
+for f in supabase/migrations/*.sql; do psql -d loker_test -f "$f"; done
 TEST_DATABASE_URL=postgres://localhost/loker_test bun test
 ```

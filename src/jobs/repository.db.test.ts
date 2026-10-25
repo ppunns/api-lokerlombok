@@ -1,12 +1,11 @@
 // Integration tests against a real Postgres with the migration applied.
 // Skipped unless TEST_DATABASE_URL is set; see README "Testing".
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { SQL } from "bun";
+import type { SQL } from "bun";
 import { jobInsertSchema, type JobInsert } from "../schemas/job";
 import { upsertJobs } from "./import";
+import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
 import { createJobsRepository } from "./repository";
-
-const url = Bun.env.TEST_DATABASE_URL;
 
 let n = 0;
 const make = (overrides: Partial<JobInsert> = {}): JobInsert =>
@@ -19,18 +18,13 @@ const make = (overrides: Partial<JobInsert> = {}): JobInsert =>
     ...overrides,
   });
 
-describe.skipIf(!url)("jobs repository (database)", () => {
+describe.skipIf(!testDatabaseUrl)("jobs repository (database)", () => {
   let sql: SQL;
   let repo: ReturnType<typeof createJobsRepository>;
   const search = (q: Record<string, unknown> = {}) => repo.search({ page: 1, limit: 20, ...q });
 
   beforeAll(() => {
-    // These tests truncate public.jobs, so never run them against a remote database.
-    const host = new URL(url!).hostname;
-    if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) {
-      throw new Error("TEST_DATABASE_URL must point to a local database");
-    }
-    sql = new SQL(url!);
+    sql = connectLocalTestDb();
     repo = createJobsRepository(sql);
   });
   beforeEach(async () => {

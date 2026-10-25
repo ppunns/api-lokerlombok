@@ -1,9 +1,11 @@
-# Database: tabel `jobs`
+# Database
+
+## Tabel `jobs`
 
 Schema Zod: `src/schemas/job.ts` · Migration: `supabase/migrations/20261025000000_create_jobs.sql`.
 Nilai enum di keduanya harus selalu sama.
 
-## Field
+### Field
 
 | Field | Tipe | Wajib | Keterangan |
 | --- | --- | --- | --- |
@@ -41,6 +43,25 @@ Di kode:
 
 - `jobInsertSchema`: validasi input sebelum insert (field tak dikenal ditolak, default terisi).
 - `jobSchema`: bentuk baris dari database (termasuk `id`, `created_at`, `updated_at`).
+
+## Tabel `source_posts`
+
+Migration: `supabase/migrations/20261025010000_create_source_posts.sql`. Diisi oleh collector
+(`src/collector/collect.ts`). Satu baris per postingan Instagram, termasuk yang ternyata bukan lowongan.
+
+| Field | Keterangan |
+| --- | --- |
+| `source_post_id` | ID media dari Instagram API (numerik). `jobs.source_post_id` memakai nilai yang sama |
+| `source_post_url` | Permalink postingan |
+| `source_posted_at` | Waktu posting |
+| `media_type` | `IMAGE`, `VIDEO`, `CAROUSEL_ALBUM` |
+| `caption` | Caption asli (`null` jika kosong) |
+| `media_urls` | URL CDN Instagram untuk OCR. **Sementara dan bisa kedaluwarsa**, jadi proses OCR sebaiknya segera setelah collect. Gambar tidak disalin |
+| `processing_status` | `pending` → `processed` (ada lowongan), `no_jobs` (bukan lowongan), atau `failed` |
+| `processing_error`, `processing_attempts` | Untuk mencoba ulang postingan yang gagal |
+
+Unik per `(source_platform, source_post_id)`. RLS aktif **tanpa policy**, sehingga tabel ini
+hanya bisa diakses backend dan tidak terbaca publik.
 
 ## Project Supabase
 
