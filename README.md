@@ -29,6 +29,7 @@ src/
   jobs/routes.ts      handler GET /jobs dan GET /jobs/:id
   jobs/repository.ts  query SQL (Bun.sql)
   jobs/import.ts      validasi dan upsert data input
+  jobs/review.ts      daftar draft dan ubah status publikasi
   instagram/client.ts client Business Discovery (Instagram Graph API)
   collector/collect.ts  ambil postingan baru → tabel source_posts
   extraction/gemini.ts  baca poster + caption dengan Gemini → JSON lowongan
@@ -37,6 +38,7 @@ scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
+scripts/review.ts     CLI cek dan publish lowongan draft
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
@@ -103,6 +105,21 @@ bun run extract --limit 50
 Status `source_posts`: `processed` (ada lowongan), `no_jobs` (bukan lowongan, mis. iklan),
 `failed` (dicoba ulang hingga 3 kali). Jika Gemini sedang sibuk (503) atau kuota habis (429),
 run berhenti tanpa menghabiskan jatah percobaan postingan. Jalankan lagi nanti.
+
+## Review dan publish
+
+Lowongan hasil AI masuk sebagai `draft` dan baru tampil di API setelah di-publish.
+
+```bash
+bun run review                    # daftar draft per postingan + link Instagram
+bun run review show <id>          # detail lengkap, termasuk teks poster (ocr_text)
+bun run review publish <id...>    # tampilkan ke publik
+bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah tayang)
+```
+
+`<id>` cukup 8 karakter pertama dari daftar. Bandingkan dengan postingan aslinya lewat link.
+Untuk memperbaiki isi lowongan (mis. nama perusahaan salah baca), edit barisnya di Supabase
+Dashboard → Table Editor → `jobs`, lalu publish.
 
 ## Testing
 
