@@ -30,9 +30,11 @@ src/
   jobs/repository.ts  query SQL (Bun.sql)
   jobs/import.ts      validasi dan upsert data input
 scripts/seed.ts       CLI input data contoh / manual
+scripts/check-instagram.ts  uji akses Instagram (read-only)
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
+docs/instagram-access.md  validasi akses Instagram (Business Discovery)
 ```
 
 ## API
