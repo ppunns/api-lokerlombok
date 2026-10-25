@@ -31,9 +31,12 @@ src/
   jobs/import.ts      validasi dan upsert data input
   instagram/client.ts client Business Discovery (Instagram Graph API)
   collector/collect.ts  ambil postingan baru → tabel source_posts
+  extraction/gemini.ts  baca poster + caption dengan Gemini → JSON lowongan
+  extraction/process.ts proses source_posts pending → jobs (draft)
 scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
+scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
@@ -84,6 +87,22 @@ bun run collect:watch  # terus berjalan, polling sesuai COLLECT_CRON (default ti
 Tiap run mengambil 25 postingan per halaman dan berhenti di halaman yang berisi postingan yang
 sudah tercatat, maksimal 4 halaman (100 postingan). Jadi run pertama hanya mengambil sekitar
 satu minggu terakhir, bukan seluruh riwayat akun. Postingan yang sama tidak pernah tersimpan dua kali.
+
+## Ekstraksi lowongan (Gemini)
+
+Mengirim caption dan gambar poster (maks. 5 per postingan, diunduh hanya di memori, tidak
+disimpan) ke Gemini (`gemini-3.1-flash-lite`, bisa diganti lewat `GEMINI_MODEL`). Hasilnya
+divalidasi Zod lalu disimpan ke `jobs` sebagai **draft**, sehingga belum tampil ke publik sampai
+dicek. Transkripsi teks poster disimpan di `jobs.ocr_text` untuk audit.
+
+```bash
+bun run extract              # proses hingga 20 postingan pending (terbaru dulu)
+bun run extract --limit 50
+```
+
+Status `source_posts`: `processed` (ada lowongan), `no_jobs` (bukan lowongan, mis. iklan),
+`failed` (dicoba ulang hingga 3 kali). Jika Gemini sedang sibuk (503) atau kuota habis (429),
+run berhenti tanpa menghabiskan jatah percobaan postingan. Jalankan lagi nanti.
 
 ## Testing
 

@@ -11,7 +11,8 @@
     "seed": "bun scripts/seed.ts",
     "seed:clean": "bun scripts/seed.ts --clean",
     "collect": "bun scripts/collect.ts",
-    "collect:watch": "bun scripts/collect.ts --watch"
+    "collect:watch": "bun scripts/collect.ts --watch",
+    "extract": "bun scripts/extract.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

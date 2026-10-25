@@ -1,0 +1,27 @@
+// Extracts jobs from pending source_posts with Gemini and stores them as drafts.
+// Usage: bun scripts/extract.ts [--limit 20]
+import { SQL } from "bun";
+import { z } from "zod";
+import { config } from "../src/config";
+import { createGeminiExtractor } from "../src/extraction/gemini";
+import { processPendingPosts } from "../src/extraction/process";
+
+const env = z
+  .object({
+    GEMINI_API_KEY: z.string().min(1),
+    GEMINI_MODEL: z.string().default("gemini-3.1-flash-lite"),
+  })
+  .parse(Bun.env);
+
+const limitArg = Bun.argv.indexOf("--limit");
+const limit = z.coerce.number().int().min(1).max(200).parse(limitArg === -1 ? 20 : Bun.argv[limitArg + 1]);
+
+const sql = new SQL(config.DATABASE_URL);
+try {
+  const extract = createGeminiExtractor({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL });
+  const result = await processPendingPosts({ sql, extract, limit });
+  console.log(`${env.GEMINI_MODEL}: ${JSON.stringify(result)}`);
+  if (result.stopped) console.log(`Stopped early (${result.stopped}): Gemini is busy or out of quota. Run again later.`);
+} finally {
+  await sql.close();
+}
