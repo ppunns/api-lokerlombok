@@ -117,14 +117,23 @@ export async function processPendingPosts({
       error = err instanceof Error ? err.message : String(err);
     }
 
+    const extractedCount = jobs.length;
     await sql.begin(async (tx) => {
+      // Never overwrite jobs that were already published or rejected by a reviewer.
+      const reviewed = await tx`
+        select source_job_index from public.jobs
+        where source_platform = 'instagram' and source_post_id = ${post.source_post_id}
+          and publication_status <> 'draft'
+      `;
+      const reviewedIndexes = new Set(reviewed.map((r: { source_job_index: number }) => r.source_job_index));
+      jobs = jobs.filter((job) => !reviewedIndexes.has(job.source_job_index));
       if (jobs.length) await upsertJobs(tx, jobs);
       // On re-extraction, drop leftover drafts beyond the new job count; reviewed jobs are kept.
       if (outcome !== "failed") {
         await tx`
           delete from public.jobs
           where source_platform = 'instagram' and source_post_id = ${post.source_post_id}
-            and source_job_index >= ${jobs.length} and publication_status = 'draft'
+            and source_job_index >= ${extractedCount} and publication_status = 'draft'
         `;
       }
       await tx`

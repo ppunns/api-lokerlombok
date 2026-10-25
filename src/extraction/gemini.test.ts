@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createGeminiExtractor, GeminiApiError, type Extraction } from "./gemini";
+import { createGeminiExtractor, GeminiApiError, withFallback, type Extraction, type Extractor } from "./gemini";
 
 const extraction: Extraction = {
   is_job_post: true,
@@ -79,5 +79,39 @@ describe("createGeminiExtractor", () => {
     const body = { candidates: [{ finishReason: "SAFETY" }] };
     const extract = createGeminiExtractor({ apiKey: "k", model: "m", fetch: fakeFetch(200, body).fn });
     expect(extract(input)).rejects.toThrow("finishReason: SAFETY");
+  });
+});
+
+describe("withFallback", () => {
+  const fails = (status: number): Extractor => async () => {
+    throw new GeminiApiError(status, `status ${status}`);
+  };
+  const succeeds: Extractor = async () => extraction;
+
+  test("uses the primary model when it works", async () => {
+    const { extract, usage } = withFallback(succeeds, fails(500));
+    expect(await extract(input)).toEqual(extraction);
+    expect(usage).toEqual({ primary: 1, fallback: 0 });
+  });
+
+  test("falls back only on 503", async () => {
+    const { extract, usage } = withFallback(fails(503), succeeds);
+    expect(await extract(input)).toEqual(extraction);
+    expect(usage).toEqual({ primary: 0, fallback: 1 });
+  });
+
+  test.each([429, 500, 400])("does not fall back on %d", async (status) => {
+    let fallbackCalls = 0;
+    const { extract } = withFallback(fails(status), async () => {
+      fallbackCalls++;
+      return extraction;
+    });
+    expect(extract(input)).rejects.toMatchObject({ status });
+    expect(fallbackCalls).toBe(0);
+  });
+
+  test("propagates the fallback error when both are overloaded", async () => {
+    const { extract } = withFallback(fails(503), fails(503));
+    expect(extract(input)).rejects.toMatchObject({ status: 503 });
   });
 });

@@ -88,6 +88,24 @@ describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
     ]);
   });
 
+  test("re-extraction never overwrites published or rejected jobs", async () => {
+    await addPost("1", "first");
+    const two = { is_job_post: true, ocr_text: null, jobs: [job("A"), job("B")] };
+    await processPendingPosts({ sql, extract: fakeExtractor({ first: two }), limit: 10, loadImage });
+    await sql`update public.jobs set publication_status = 'published', title = 'A (edited)' where source_job_index = 0`;
+
+    await sql`update public.source_posts set processing_status = 'pending'`;
+    const again = { is_job_post: true, ocr_text: null, jobs: [job("A2"), job("B2")] };
+    const result = await processPendingPosts({ sql, extract: fakeExtractor({ first: again }), limit: 10, loadImage });
+
+    expect(result).toMatchObject({ processed: 1, jobs: 1 });
+    const rows = await sql`select title, publication_status from public.jobs order by source_job_index`;
+    expect(rows).toEqual([
+      { title: "A (edited)", publication_status: "published" },
+      { title: "B2", publication_status: "draft" },
+    ]);
+  });
+
   test("marks invalid extractions and errors as failed, retrying up to MAX_ATTEMPTS", async () => {
     await addPost("1", "kosong");
     await addPost("2", "error");

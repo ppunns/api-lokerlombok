@@ -100,3 +100,22 @@ export function createGeminiExtractor({ apiKey, model, fetch: doFetch = fetch }:
 }
 
 export type Extractor = ReturnType<typeof createGeminiExtractor>;
+
+// Uses the fallback model only when the primary model is overloaded (503).
+// Quota (429) and other errors are passed through unchanged.
+export function withFallback(primary: Extractor, fallback: Extractor) {
+  const usage = { primary: 0, fallback: 0 };
+  const extract: Extractor = async (input) => {
+    try {
+      const result = await primary(input);
+      usage.primary++;
+      return result;
+    } catch (err) {
+      if (!(err instanceof GeminiApiError && err.status === 503)) throw err;
+      const result = await fallback(input);
+      usage.fallback++;
+      return result;
+    }
+  };
+  return { extract, usage };
+}
