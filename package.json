@@ -1,0 +1,25 @@
+{
+  "name": "loker-lombok-instagram",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "seed": "bun scripts/seed.ts",
+    "seed:clean": "bun scripts/seed.ts --clean"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "hono": "^4.13.14",
+    "zod": "^4.6.7"
+  }
+}
