@@ -3,7 +3,7 @@ import { config } from "./config";
 import { connectDb, POOL_MAX } from "./db";
 import { createJobsRepository } from "./jobs/repository";
 
-const sql = connectDb(config.DATABASE_URL, POOL_MAX.api);
+const sql = connectDb(config.API_DATABASE_URL ?? config.DATABASE_URL, POOL_MAX.api);
 const app = createApp({
   jobs: createJobsRepository(sql),
   pingDb: () => sql`select 1`,

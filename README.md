@@ -38,6 +38,7 @@ src/
   pipeline/run.ts     satu putaran otomatis: collect lalu extract
 scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
+scripts/check-api-role.ts   uji API_DATABASE_URL benar-benar read-only (lihat docs/database.md)
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
 scripts/review.ts     CLI cek dan publish lowongan draft

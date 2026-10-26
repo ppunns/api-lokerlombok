@@ -64,6 +64,19 @@ Migration: `supabase/migrations/20261025010000_create_source_posts.sql`. Diisi o
 Unik per `(source_platform, source_post_id)`. RLS aktif **tanpa policy**, sehingga tabel ini
 hanya bisa diakses backend dan tidak terbaca publik.
 
+## Role `api_readonly` (API publik)
+
+Migration `20261027000000_create_api_readonly_role.sql` membuat role login khusus API:
+
+- hanya `select` pada `jobs`, tanpa akses ke `source_posts`;
+- RLS: hanya baris `published` yang terlihat;
+- read-only secara default, `statement_timeout` 5 detik, maksimal 5 koneksi (sama dengan `POOL_MAX.api`).
+
+Password tidak ada di migration. Pasang sekali lewat SQL Editor:
+`alter role api_readonly password '...';`, lalu isi `API_DATABASE_URL` (session pooler, user
+`api_readonly.<project-ref>`). Cek sebelum API dipindah: `bun scripts/check-api-role.ts`
+(tidak mengubah data). Pipeline dan script admin tetap memakai `DATABASE_URL`.
+
 ## Project Supabase
 
 - Project: `loker-lombok-instagram` (ref `vzzlkhapqmcaizusykfe`, region `ap-southeast-1`, Postgres 17).
