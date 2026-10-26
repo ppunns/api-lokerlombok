@@ -32,6 +32,10 @@ const { extract, usage } = withFallback(
 async function round() {
   const started = new Date().toISOString();
   const r = await runPipelineOnce({ sql, client, username: env.IG_TARGET_USERNAME, extract, extractLimit: env.EXTRACT_BATCH });
+  if (r.skipped) {
+    console.log(`[${started}] skipped: another pipeline run is still in progress`);
+    return true;
+  }
   console.log(
     `[${started}] collect: ${r.collectError ? `FAILED ${r.collectError}` : JSON.stringify(r.collect)}` +
       ` | extract: ${r.extractError ? `FAILED ${r.extractError}` : JSON.stringify(r.extract)}` +

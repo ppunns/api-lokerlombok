@@ -4,7 +4,7 @@ import type { SQL } from "bun";
 import type { Extractor } from "../extraction/gemini";
 import { InstagramApiError, type InstagramClient, type InstagramMedia } from "../instagram/client";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
-import { describeError, runPipelineOnce } from "./run";
+import { describeError, PIPELINE_LOCK_KEY, runPipelineOnce } from "./run";
 
 // No media_url, so extraction has no images to download in tests.
 const media = (id: number): InstagramMedia => ({
@@ -48,6 +48,12 @@ const extract: Extractor = async ({ caption }) => ({
 describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
   let sql: SQL;
   const opts = (client: InstagramClient) => ({ sql, client, username: "lokerlombok", extract, extractLimit: 10 });
+  // A round that is expected to run (not skipped by the lock).
+  const round = async (o: Parameters<typeof runPipelineOnce>[0]) => {
+    const r = await runPipelineOnce(o);
+    if (r.skipped) throw new Error("unexpected skip");
+    return r;
+  };
 
   beforeAll(() => {
     sql = connectLocalTestDb();
@@ -60,7 +66,7 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
   });
 
   test("collects new posts and extracts them as draft jobs in one round", async () => {
-    const r = await runPipelineOnce(opts(feedClient([media(2), media(1)])));
+    const r = await round(opts(feedClient([media(2), media(1)])));
     expect(r.collectError).toBeNull();
     expect(r.collect).toMatchObject({ inserted: 2 });
     expect(r.extract).toMatchObject({ processed: 2, jobs: 2, stopped: null });
@@ -69,11 +75,36 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
   });
 
   test("a second round with nothing new does not reprocess or duplicate", async () => {
-    await runPipelineOnce(opts(feedClient([media(1)])));
-    const r = await runPipelineOnce(opts(feedClient([media(1)])));
+    await round(opts(feedClient([media(1)])));
+    const r = await round(opts(feedClient([media(1)])));
     expect(r.collect).toMatchObject({ inserted: 0 });
     expect(r.extract).toMatchObject({ processed: 0, jobs: 0 });
     expect((await sql`select count(*)::int n from public.jobs`)[0].n).toBe(1);
+  });
+
+  test("skips the round while another run holds the lock, and runs once it is released", async () => {
+    let calls = 0;
+    const counting: InstagramClient = {
+      fetchRecentMedia: async () => {
+        calls++;
+        return { media: [media(1)], after: undefined };
+      },
+    };
+    const other = connectLocalTestDb();
+    try {
+      await other`select pg_advisory_lock(${PIPELINE_LOCK_KEY})`;
+      expect(await runPipelineOnce(opts(counting))).toEqual({ skipped: true });
+      expect(calls).toBe(0);
+      expect((await sql`select count(*)::int n from public.source_posts`)[0].n).toBe(0);
+
+      await other`select pg_advisory_unlock(${PIPELINE_LOCK_KEY})`;
+      expect(await runPipelineOnce(opts(counting))).toMatchObject({ skipped: false, collect: { inserted: 1 } });
+      // The lock is released after a round, so the next one runs too.
+      expect(await runPipelineOnce(opts(counting))).toMatchObject({ skipped: false });
+      expect(calls).toBe(2);
+    } finally {
+      await other.close();
+    }
   });
 
   test("still extracts stored pending posts when collect fails", async () => {
@@ -81,7 +112,7 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
     await sql`update public.source_posts set processing_status = 'pending'`;
     await sql`truncate public.jobs`;
 
-    const r = await runPipelineOnce(opts(failingClient));
+    const r = await round(opts(failingClient));
     expect(r.collect).toBeNull();
     expect(r.collectError).toContain("token expired or invalid");
     expect(r.extract).toMatchObject({ processed: 1 });

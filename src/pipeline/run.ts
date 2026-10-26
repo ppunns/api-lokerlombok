@@ -20,9 +20,29 @@ export function describeError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// Arbitrary constant key for the Postgres advisory lock that allows only one pipeline run at a time.
+export const PIPELINE_LOCK_KEY = 4_120_261_027;
+
 // One polling round: collect new posts, then extract jobs from pending ones.
 // A failed collect does not block extracting posts that are already stored.
+// If another round is still running (schedulers can start overlapping runs), this one does nothing.
 export async function runPipelineOnce({ sql, client, username, extract, extractLimit }: PipelineOptions) {
+  // Session-level lock on a reserved connection; it is released on unlock or when the process dies.
+  const lockConn = await sql.reserve();
+  try {
+    const [{ locked }] = await lockConn`select pg_try_advisory_lock(${PIPELINE_LOCK_KEY}) as locked`;
+    if (!locked) return { skipped: true as const };
+    try {
+      return { skipped: false as const, ...(await runRound({ sql, client, username, extract, extractLimit })) };
+    } finally {
+      await lockConn`select pg_advisory_unlock(${PIPELINE_LOCK_KEY})`;
+    }
+  } finally {
+    lockConn.release();
+  }
+}
+
+async function runRound({ sql, client, username, extract, extractLimit }: PipelineOptions) {
   const result = {
     collect: null as Awaited<ReturnType<typeof collectNewPosts>> | null,
     collectError: null as string | null,
