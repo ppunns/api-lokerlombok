@@ -17,7 +17,7 @@ const env = z
 const limitArg = Bun.argv.indexOf("--limit");
 const limit = z.coerce.number().int().min(1).max(200).parse(limitArg === -1 ? 20 : Bun.argv[limitArg + 1]);
 
-const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
+const sql = connectDb(config.adminDatabaseUrl(), POOL_MAX.worker);
 try {
   const { extract, usage } = withFallback(
     createGeminiExtractor({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }),

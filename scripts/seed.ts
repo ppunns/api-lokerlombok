@@ -6,7 +6,7 @@ import { config } from "../src/config";
 import { SAMPLE_SOURCE_ACCOUNT, upsertJobs, validateJobs } from "../src/jobs/import";
 
 const arg = Bun.argv[2];
-const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
+const sql = connectDb(config.adminDatabaseUrl(), POOL_MAX.worker);
 
 try {
   if (arg === "--clean") {

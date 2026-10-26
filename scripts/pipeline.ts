@@ -22,7 +22,7 @@ const env = z
   })
   .parse(Bun.env);
 
-const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
+const sql = connectDb(config.adminDatabaseUrl(), POOL_MAX.worker);
 const client = createInstagramClient({ igUserId: env.IG_USER_ID, accessToken: env.IG_ACCESS_TOKEN });
 const { extract, usage } = withFallback(
   createGeminiExtractor({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }),

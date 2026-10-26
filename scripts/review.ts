@@ -10,7 +10,7 @@ import { config } from "../src/config";
 import { getJob, listDrafts, resolveJobIds, setPublicationStatus } from "../src/jobs/review";
 
 const [command = "list", ...args] = Bun.argv.slice(2);
-const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
+const sql = connectDb(config.adminDatabaseUrl(), POOL_MAX.worker);
 
 try {
   if (command === "list") {

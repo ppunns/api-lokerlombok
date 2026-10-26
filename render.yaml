@@ -1,0 +1,49 @@
+# Render Blueprint: public API + scheduled pipeline. See README "Deploy ke Render".
+# Secrets use `sync: false`: Render asks for them once when the Blueprint is created; they never live here.
+services:
+  # Public read-only API. Gets only the api_readonly credentials, never DATABASE_URL.
+  - type: web
+    name: loker-lombok-api
+    runtime: node # Bun is provided because bun.lock is in the repo; pinned below.
+    region: singapore # same region as the Supabase project (ap-southeast-1)
+    plan: free
+    buildCommand: bun install --frozen-lockfile
+    startCommand: bun run start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: BUN_VERSION
+        value: 1.4.4
+      - key: API_DATABASE_URL
+        sync: false
+      # Add CORS_ORIGINS=https://<frontend-domain> once the frontend has a domain.
+
+  # Collect new Instagram posts, then extract jobs as drafts. Render runs at most one run at a time.
+  - type: cron
+    name: loker-lombok-pipeline
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    schedule: "*/15 * * * *" # UTC
+    buildCommand: bun install --frozen-lockfile
+    startCommand: bun run pipeline:once
+    autoDeployTrigger: commit
+    envVars:
+      - key: BUN_VERSION
+        value: 1.4.4
+      - key: DATABASE_URL
+        sync: false
+      - key: IG_USER_ID
+        sync: false
+      - key: IG_ACCESS_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: IG_TARGET_USERNAME
+        value: lokerlombok
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: GEMINI_FALLBACK_MODEL
+        value: gemini-3.5-flash-lite
+      - key: EXTRACT_BATCH
+        value: "20"

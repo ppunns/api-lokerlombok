@@ -150,6 +150,29 @@ bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah t
 Untuk memperbaiki isi lowongan (mis. nama perusahaan salah baca), edit barisnya di Supabase
 Dashboard → Table Editor → `jobs`, lalu publish.
 
+## Deploy ke Render
+
+`render.yaml` (Blueprint) membuat dua service di region Singapore (sama dengan Supabase):
+
+- `loker-lombok-api` (Web Service, Free): `bun run start`, health check `/health`. Hanya diberi
+  `API_DATABASE_URL` (role `api_readonly`), tidak pernah `DATABASE_URL`. Free tier tidur setelah
+  15 menit tanpa request; request pertama sesudahnya menunggu ±1 menit.
+- `loker-lombok-pipeline` (Cron Job, berbayar per detik, minimal $1/bulan): `bun run pipeline:once`
+  tiap 15 menit (UTC). Render menjalankan paling banyak satu run sekaligus. Run yang gagal keluar
+  dengan kode 1 sehingga terlihat (dan bisa dinotifikasi) di dashboard.
+
+Langkah:
+
+1. Push repo ke GitHub/GitLab, lalu Render → New → Blueprint → pilih repo.
+2. Isi rahasia saat diminta: `API_DATABASE_URL` (API); `DATABASE_URL`, `IG_USER_ID`,
+   `IG_ACCESS_TOKEN`, `GEMINI_API_KEY` (pipeline).
+3. Setelah deploy: `curl https://<api>.onrender.com/health` → `{"status":"ok"}`, lalu jalankan
+   `bun scripts/check-api-role.ts` dengan `API_DATABASE_URL` yang sama.
+4. Saat frontend punya domain, tambahkan `CORS_ORIGINS` di service API.
+
+Saat deploy, instance lama dan baru berjalan bersamaan sebentar. Pool API (2 koneksi) dan
+penanganan `SIGTERM` di `src/index.ts` membuat keduanya muat dalam batas role `api_readonly` (5).
+
 ## Testing
 
 ```bash
