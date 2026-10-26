@@ -124,7 +124,8 @@ Respons 200:
    - Gaji: kedua angka → "Rp2,5 jt – Rp3 jt"; hanya min → "Mulai Rp3 jt"; tanpa angka tapi ada
      `salary_text` → tampilkan teksnya; semua kosong → "Gaji tidak disebutkan".
    - Deadline: "29 Okt 2026"; tandai "Ditutup" bila sudah lewat (bandingkan tanggal WITA).
-     Lowongan yang ditutup tetap bisa muncul di API.
+     Backend menyembunyikan lowongan yang lewat deadline dalam ±15 menit (dan yang tanpa deadline
+     setelah 30 hari), tapi tetap tangani kasus ini untuk jeda tersebut.
    - Field `null` disembunyikan, jangan tampilkan "null" atau mengisi dengan tebakan.
 8. **Halaman Tentang dan peringatan**: halaman `/tentang`, disclaimer di footer, dan peringatan di
    halaman detail. Pakai teks dari bagian "Copywriting" di bawah, jangan mengarang sendiri.

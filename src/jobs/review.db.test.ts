@@ -5,7 +5,7 @@ import { jobInsertSchema } from "../schemas/job";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
 import { upsertJobs } from "./import";
 import { createJobsRepository } from "./repository";
-import { listDrafts, resolveJobIds, setPublicationStatus } from "./review";
+import { listDrafts, listRecentlyPublished, resolveJobIds, setPublicationStatus } from "./review";
 
 describe.skipIf(!testDatabaseUrl)("job review (database)", () => {
   let sql: SQL;
@@ -37,6 +37,17 @@ describe.skipIf(!testDatabaseUrl)("job review (database)", () => {
       ["Gudang", false],
       ["Lama", false],
     ]);
+  });
+
+  test("lists recently published jobs only, newest first", async () => {
+    await sql`update public.jobs set publication_status = 'published' where title = 'Gudang'`;
+    // Bypass the set_updated_at trigger to backdate a row.
+    await sql.begin(async (tx) => {
+      await tx`set local session_replication_role = replica`;
+      await tx`update public.jobs set updated_at = now() - interval '10 days' where title = 'Sudah tayang'`;
+    });
+    expect((await listRecentlyPublished(sql, 3)).map((j) => j.title)).toEqual(["Gudang"]);
+    expect((await listRecentlyPublished(sql, 30)).map((j) => j.title)).toEqual(["Gudang", "Sudah tayang"]);
   });
 
   test("resolves unique id prefixes and rejects unknown, ambiguous or invalid ones", async () => {

@@ -1,4 +1,5 @@
 import type { SQL } from "bun";
+import { expireJobs } from "../jobs/expire";
 import { upsertJobs, validateJobs } from "../jobs/import";
 import type { JobInsert } from "../schemas/job";
 import { GEMINI_TIMEOUT_STATUS, GeminiApiError, type Extraction, type Extractor } from "./gemini";
@@ -143,6 +144,8 @@ export async function processPendingPosts({
       const reviewedIndexes = new Set(reviewed.map((r: { source_job_index: number }) => r.source_job_index));
       jobs = jobs.filter((job) => !reviewedIndexes.has(job.source_job_index));
       if (jobs.length) await upsertJobs(tx, jobs);
+      // Old posts (e.g. the first backfill) can already be closed: expire them before they are ever visible.
+      if (jobs.length && autoPublish) await expireJobs(tx, post.source_post_id);
       // On re-extraction, drop leftover drafts beyond the new job count; reviewed jobs are kept.
       if (outcome !== "failed") {
         await tx`

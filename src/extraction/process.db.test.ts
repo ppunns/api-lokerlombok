@@ -100,6 +100,27 @@ describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
     ]);
   });
 
+  test("autoPublish stores already-closed jobs from old posts as expired, never published", async () => {
+    await addPost("1", "old");
+    const extract = fakeExtractor({
+      old: { is_job_post: true, ocr_text: null, jobs: [{ ...job("Lewat"), deadline: "2020-01-01" }, job("Masih buka")] },
+    });
+    // The expiry runs in the same transaction as the insert, so the closed job is never public.
+    await processPendingPosts({ sql, extract, limit: 10, loadImage, autoPublish: true });
+    const rows = await sql`select title, publication_status from public.jobs order by source_job_index`;
+    expect(rows).toEqual([
+      { title: "Lewat", publication_status: "expired" },
+      { title: "Masih buka", publication_status: "published" },
+    ]);
+  });
+
+  test("without autoPublish, closed drafts stay drafts", async () => {
+    await addPost("1", "old");
+    const extract = fakeExtractor({ old: { is_job_post: true, ocr_text: null, jobs: [{ ...job("Lewat"), deadline: "2020-01-01" }] } });
+    await processPendingPosts({ sql, extract, limit: 10, loadImage });
+    expect((await sql`select publication_status from public.jobs`)[0].publication_status).toBe("draft");
+  });
+
   test("autoPublish never publishes invalid extractions", async () => {
     await addPost("1", "bad");
     const bad = { ...job("Kasir"), salary_min: 5_000_000, salary_max: 1_000_000 };

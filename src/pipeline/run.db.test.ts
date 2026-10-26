@@ -75,9 +75,19 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
   });
 
   test("autoPublish passes through the pipeline round", async () => {
-    await round({ ...opts(feedClient([media(1)])), autoPublish: true });
+    const r = await round({ ...opts(feedClient([media(1)])), autoPublish: true });
+    expect(r).toMatchObject({ expired: 0, expireError: null });
     const jobs = await sql`select publication_status from public.jobs`;
     expect(jobs).toEqual([{ publication_status: "published" }]);
+  });
+
+  test("each round expires closed jobs, even when collect fails", async () => {
+    await round({ ...opts(feedClient([media(1)])), autoPublish: true });
+    await sql`update public.jobs set deadline = '2020-01-01'`;
+    const r = await round(opts(failingClient));
+    expect(r.collectError).not.toBeNull();
+    expect(r.expired).toBe(1);
+    expect((await sql`select publication_status from public.jobs`)[0].publication_status).toBe("expired");
   });
 
   test("a second round with nothing new does not reprocess or duplicate", async () => {

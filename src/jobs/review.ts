@@ -20,7 +20,7 @@ export async function listDrafts(sql: SQL, limit = 50): Promise<DraftJob[]> {
   return sql`
     select id, title, company_name, location, deadline::text as deadline, salary_text,
            source_post_id, source_post_url, source_job_index, source_posted_at,
-           coalesce(deadline < current_date, false) as deadline_passed
+           coalesce(deadline < (now() at time zone 'Asia/Makassar')::date, false) as deadline_passed
     from public.jobs
     where publication_status = 'draft'
     order by source_posted_at desc nulls last, source_post_id, source_job_index
@@ -39,6 +39,20 @@ export async function resolveJobIds(sql: SQL, prefixes: string[]): Promise<strin
     ids.push(rows[0].id);
   }
   return ids;
+}
+
+// Published jobs that went public recently (auto-publish sets them at creation), newest first,
+// so an admin can spot wrong or suspicious ones and reject them.
+export async function listRecentlyPublished(sql: SQL, days = 3, limit = 100): Promise<DraftJob[]> {
+  return sql`
+    select id, title, company_name, location, deadline::text as deadline, salary_text,
+           source_post_id, source_post_url, source_job_index, source_posted_at,
+           false as deadline_passed
+    from public.jobs
+    where publication_status = 'published' and updated_at >= now() - make_interval(days => ${days})
+    order by updated_at desc, source_post_id, source_job_index
+    limit ${limit}
+  `;
 }
 
 export async function getJob(sql: SQL, id: string) {

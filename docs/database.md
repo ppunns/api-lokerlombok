@@ -37,8 +37,13 @@ Aturan:
   (0, 1, 2, …), dan duplikat dicegah oleh `unique (source_platform, source_post_id, source_job_index)`.
   Saat postingan diekstraksi ulang, gunakan urutan yang sama supaya baris lama ter-update, bukan terduplikasi.
 - `extraction_status` (hasil AI) terpisah dari `publication_status` (tampil atau tidak).
-- RLS aktif: `anon`/`authenticated` hanya bisa `SELECT` baris `published`. Penulisan
-  dilakukan backend memakai service-role key (melewati RLS); jangan pernah dipakai di frontend.
+- Role publik Supabase (`anon`/`authenticated`) tidak punya hak apa pun di `jobs` maupun
+  `source_posts` (migration `20261028000000`), jadi REST API Supabase tidak membuka data ini.
+  Akses publik hanya lewat API kita (role `api_readonly`, RLS: baris `published` saja).
+  Penulisan dilakukan pipeline/script admin dengan `DATABASE_URL`; jangan pernah dipakai di frontend.
+- `expired`: diisi otomatis tiap putaran pipeline untuk lowongan `published` yang deadline-nya
+  sudah lewat (tanggal WITA; hari deadline masih dihitung buka), atau tanpa deadline dan postingannya
+  lebih dari 30 hari (`src/jobs/expire.ts`).
 
 Di kode:
 

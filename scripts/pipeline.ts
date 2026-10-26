@@ -42,9 +42,10 @@ async function round() {
   console.log(
     `[${started}] collect: ${r.collectError ? `FAILED ${r.collectError}` : JSON.stringify(r.collect)}` +
       ` | extract: ${r.extractError ? `FAILED ${r.extractError}` : JSON.stringify(r.extract)}` +
+      ` | expired: ${r.expireError ? `FAILED ${r.expireError}` : r.expired}` +
       ` | models (total): ${env.GEMINI_MODEL}=${usage.primary}, ${env.GEMINI_FALLBACK_MODEL}=${usage.fallback}`,
   );
-  return !r.collectError && !r.extractError;
+  return !r.collectError && !r.extractError && !r.expireError;
 }
 
 if (Bun.argv.includes("--once")) {

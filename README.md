@@ -135,6 +135,9 @@ bun run pipeline:once   # satu putaran lalu keluar (untuk cron/scheduler ekstern
 - Jika collect gagal (mis. token Instagram kedaluwarsa, error 190), extract tetap memproses
   postingan yang sudah tersimpan, dan log menyebut bahwa token perlu diperbarui.
 - Postingan yang sudah diproses tidak diekstrak ulang.
+- Tiap putaran juga mengubah lowongan yang sudah tutup menjadi `expired` (deadline lewat menurut
+  WITA, atau tanpa deadline dan lebih dari 30 hari). Lowongan dari postingan lama yang sudah tutup
+  langsung disimpan sebagai `expired`, tidak sempat tayang.
 - Proses harus terus hidup agar otomatis: jalankan di server/hosting, bukan terminal yang ditutup.
 
 ## Review dan publish
@@ -145,6 +148,7 @@ setelah di-publish.
 
 ```bash
 bun run review                    # daftar draft per postingan + link Instagram
+bun run review recent [hari]      # lowongan yang tayang/berubah dalam N hari terakhir (default 3)
 bun run review show <id>          # detail lengkap, termasuk teks poster (ocr_text)
 bun run review publish <id...>    # tampilkan ke publik
 bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah tayang)
@@ -180,7 +184,8 @@ Dengan Postgres lokal:
 
 ```bash
 createdb loker_test
-psql -d loker_test -c "create role anon; create role authenticated;"  # role bawaan Supabase
+# role bawaan Supabase, dengan grant default seperti di Supabase
+psql -d loker_test -c "create role anon; create role authenticated; alter default privileges in schema public grant all on tables to anon, authenticated;"
 for f in supabase/migrations/*.sql; do psql -d loker_test -f "$f"; done
 TEST_DATABASE_URL=postgres://localhost/loker_test bun test
 ```

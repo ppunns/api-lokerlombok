@@ -2,6 +2,7 @@ import type { SQL } from "bun";
 import { collectNewPosts } from "../collector/collect";
 import type { Extractor } from "../extraction/gemini";
 import { processPendingPosts } from "../extraction/process";
+import { expireJobs } from "../jobs/expire";
 import { InstagramApiError, type InstagramClient } from "../instagram/client";
 
 export interface PipelineOptions {
@@ -24,7 +25,7 @@ export function describeError(err: unknown): string {
 // Arbitrary constant key for the Postgres advisory lock that allows only one pipeline run at a time.
 export const PIPELINE_LOCK_KEY = 4_120_261_027;
 
-// One polling round: collect new posts, then extract jobs from pending ones.
+// One polling round: collect new posts, extract jobs from pending ones, then expire closed jobs.
 // A failed collect does not block extracting posts that are already stored.
 // If another round is still running (schedulers can start overlapping runs), this one does nothing.
 export async function runPipelineOnce(options: PipelineOptions) {
@@ -50,6 +51,8 @@ async function runRound({ sql, client, username, extract, extractLimit, autoPubl
     collectError: null as string | null,
     extract: null as Awaited<ReturnType<typeof processPendingPosts>> | null,
     extractError: null as string | null,
+    expired: null as number | null,
+    expireError: null as string | null,
   };
 
   try {
@@ -61,6 +64,11 @@ async function runRound({ sql, client, username, extract, extractLimit, autoPubl
     result.extract = await processPendingPosts({ sql, extract, limit: extractLimit, autoPublish });
   } catch (err) {
     result.extractError = describeError(err);
+  }
+  try {
+    result.expired = await expireJobs(sql);
+  } catch (err) {
+    result.expireError = describeError(err);
   }
   return result;
 }
