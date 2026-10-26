@@ -1,12 +1,12 @@
 // Usage:
 //   bun scripts/seed.ts [file.json]   validate and upsert jobs (default: data/sample-jobs.json)
 //   bun scripts/seed.ts --clean       delete sample jobs (source_account = contoh_data)
-import { SQL } from "bun";
+import { connectDb, POOL_MAX } from "../src/db";
 import { config } from "../src/config";
 import { SAMPLE_SOURCE_ACCOUNT, upsertJobs, validateJobs } from "../src/jobs/import";
 
 const arg = Bun.argv[2];
-const sql = new SQL(config.DATABASE_URL);
+const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
 
 try {
   if (arg === "--clean") {

@@ -2,8 +2,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SQL } from "bun";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
-import { GeminiApiError, type Extraction, type Extractor } from "./gemini";
-import { MAX_ATTEMPTS, processPendingPosts } from "./process";
+import { GEMINI_TIMEOUT_STATUS, GeminiApiError, type Extraction, type Extractor } from "./gemini";
+import { fetchImage, MAX_ATTEMPTS, processPendingPosts } from "./process";
 
 const job = (title: string): Extraction["jobs"][number] => ({
   title,
@@ -31,6 +31,19 @@ function fakeExtractor(byCaption: Record<string, Extraction | Error>): Extractor
 }
 
 const loadImage = async () => ({ mimeType: "image/jpeg", data: "QUJD" });
+
+describe("fetchImage", () => {
+  test("times out a hanging download", async () => {
+    const hanging = ((_url: string, init: RequestInit) =>
+      new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch;
+    expect(fetchImage("https://cdn/x.jpg", hanging, 20)).rejects.toThrow("image download timed out after 20ms");
+  });
+
+  test("returns the image as base64 in memory", async () => {
+    const fn = (async () => new Response("ABC", { headers: { "content-type": "image/png; q=1" } })) as unknown as typeof fetch;
+    expect(await fetchImage("https://cdn/x.jpg", fn)).toEqual({ mimeType: "image/png", data: "QUJD" });
+  });
+});
 
 describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
   let sql: SQL;
@@ -162,5 +175,57 @@ describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
     const third = await processPendingPosts({ sql, extract, limit: 10, loadImage, retryDelaysMs: [0, 0] });
     expect(third).toMatchObject({ processed: 1, stopped: null });
     expect(flakyCalls).toBe(3);
+  });
+
+  test("treats 502/504 as overload: stops without spending an attempt", async () => {
+    await addPost("1", "gateway");
+    const extract: Extractor = async () => {
+      throw new GeminiApiError(502, "Gemini API error (HTTP 502)");
+    };
+    const result = await processPendingPosts({ sql, extract, limit: 10, loadImage, retryDelaysMs: [0, 0] });
+    expect(result.stopped).toBe("unavailable");
+    expect(await status("1")).toMatchObject({ processing_status: "pending", processing_attempts: 0 });
+  });
+
+  test("a timeout spends one attempt without retry, then stops the run", async () => {
+    await addPost("old", "ok", 1);
+    await addPost("new", "slow", 2);
+    let slowCalls = 0;
+    const extract: Extractor = async ({ caption }) => {
+      if (caption === "slow") {
+        slowCalls++;
+        throw new GeminiApiError(GEMINI_TIMEOUT_STATUS, "Gemini request timed out after 60000ms");
+      }
+      return { is_job_post: true, ocr_text: null, jobs: [job("Kasir")] };
+    };
+
+    const first = await processPendingPosts({ sql, extract, limit: 10, loadImage, retryDelaysMs: [0, 0] });
+    expect(first).toMatchObject({ failed: 1, processed: 0, stopped: "timeout" });
+    expect(slowCalls).toBe(1);
+    expect(await status("new")).toMatchObject({ processing_status: "failed", processing_attempts: 1 });
+    expect((await status("new")).processing_error).toContain("timed out");
+    expect(await status("old")).toMatchObject({ processing_status: "pending", processing_attempts: 0 });
+
+    // After MAX_ATTEMPTS the slow post is skipped and the queue moves on.
+    for (let i = 1; i < MAX_ATTEMPTS; i++) await processPendingPosts({ sql, extract, limit: 10, loadImage });
+    expect(await status("new")).toMatchObject({ processing_status: "failed", processing_attempts: MAX_ATTEMPTS });
+    const last = await processPendingPosts({ sql, extract, limit: 10, loadImage });
+    expect(last).toMatchObject({ processed: 1, stopped: null });
+    expect(slowCalls).toBe(MAX_ATTEMPTS);
+  });
+
+  test("an image download failure fails only that post", async () => {
+    await addPost("1", "ok", 1);
+    await addPost("2", "ok", 2);
+    const extract = fakeExtractor({ ok: { is_job_post: true, ocr_text: null, jobs: [job("Kasir")] } });
+    let calls = 0;
+    const flakyImage = async () => {
+      if (calls++ === 0) throw new Error("image download timed out after 20000ms");
+      return { mimeType: "image/jpeg", data: "QUJD" };
+    };
+    const result = await processPendingPosts({ sql, extract, limit: 10, loadImage: flakyImage });
+    expect(result).toMatchObject({ failed: 1, processed: 1, stopped: null });
+    expect(await status("2")).toMatchObject({ processing_status: "failed", processing_attempts: 1 });
+    expect(await status("1")).toMatchObject({ processing_status: "processed" });
   });
 });

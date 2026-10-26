@@ -2,7 +2,7 @@
 // Usage:
 //   bun scripts/collect.ts           run once (for an external scheduler)
 //   bun scripts/collect.ts --watch   keep running and poll on COLLECT_CRON (default every 15 minutes)
-import { SQL } from "bun";
+import { connectDb, POOL_MAX } from "../src/db";
 import { z } from "zod";
 import { collectNewPosts } from "../src/collector/collect";
 import { config } from "../src/config";
@@ -17,7 +17,7 @@ const env = z
   })
   .parse(Bun.env);
 
-const sql = new SQL(config.DATABASE_URL);
+const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
 const client = createInstagramClient({ igUserId: env.IG_USER_ID, accessToken: env.IG_ACCESS_TOKEN });
 
 async function runOnce() {

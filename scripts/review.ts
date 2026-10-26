@@ -5,12 +5,12 @@
 //   bun scripts/review.ts publish <id...>    make jobs public
 //   bun scripts/review.ts reject <id...>     hide jobs (also unpublishes)
 // <id> can be the first 8 characters shown in the list.
-import { SQL } from "bun";
+import { connectDb, POOL_MAX } from "../src/db";
 import { config } from "../src/config";
 import { getJob, listDrafts, resolveJobIds, setPublicationStatus } from "../src/jobs/review";
 
 const [command = "list", ...args] = Bun.argv.slice(2);
-const sql = new SQL(config.DATABASE_URL);
+const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
 
 try {
   if (command === "list") {

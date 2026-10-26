@@ -6,13 +6,29 @@ const failingRepo: JobsRepository = {
   search: () => Promise.reject(new Error("db down")),
   findPublishedById: () => Promise.reject(new Error("db down")),
 };
-const app = createApp({ jobs: failingRepo });
+const pingDb = async () => {};
+const app = createApp({ jobs: failingRepo, pingDb });
 
 describe("app", () => {
-  test("GET /health returns ok", async () => {
+  test("GET /health returns ok when the database answers", async () => {
     const res = await app.request("/health");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "ok" });
+  });
+
+  test("GET /health returns 503 when the database fails", async () => {
+    const down = createApp({ jobs: failingRepo, pingDb: () => Promise.reject(new Error("connection refused")) });
+    const res = await down.request("/health");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ status: "unavailable" });
+  });
+
+  test("GET /health returns 503 when the database does not answer in time", async () => {
+    const hanging = createApp({ jobs: failingRepo, pingDb: () => new Promise(() => {}), healthTimeoutMs: 20 });
+    const started = performance.now();
+    const res = await hanging.request("/health");
+    expect(res.status).toBe(503);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   test("unknown route returns 404 JSON", async () => {
@@ -35,13 +51,13 @@ describe("CORS", () => {
   };
 
   test("allows any origin by default for GET", async () => {
-    const res = await createApp({ jobs: repo }).request("/jobs", { headers: { Origin: "https://frontend.example" } });
+    const res = await createApp({ jobs: repo, pingDb }).request("/jobs", { headers: { Origin: "https://frontend.example" } });
     expect(res.status).toBe(200);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 
   test("answers preflight with GET only", async () => {
-    const res = await createApp({ jobs: repo }).request("/jobs", {
+    const res = await createApp({ jobs: repo, pingDb }).request("/jobs", {
       method: "OPTIONS",
       headers: { Origin: "https://frontend.example", "Access-Control-Request-Method": "GET" },
     });
@@ -51,7 +67,7 @@ describe("CORS", () => {
   });
 
   test("restricts to configured origins", async () => {
-    const app = createApp({ jobs: repo, corsOrigins: ["https://lokerlombok.example"] });
+    const app = createApp({ jobs: repo, pingDb, corsOrigins: ["https://lokerlombok.example"] });
     const allowed = await app.request("/jobs", { headers: { Origin: "https://lokerlombok.example" } });
     expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("https://lokerlombok.example");
     expect(allowed.headers.get("Vary")).toContain("Origin");

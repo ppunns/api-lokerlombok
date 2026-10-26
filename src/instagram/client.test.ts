@@ -68,6 +68,24 @@ describe("createInstagramClient", () => {
     expect(err).toMatchObject({ status: 400, code: 100, message: "Unsupported get request." });
   });
 
+  test("times out a hanging request", async () => {
+    const hanging = ((_url: string, init: RequestInit) =>
+      new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch;
+    const client = createInstagramClient({ igUserId: "123", accessToken: TOKEN, fetch: hanging, timeoutMs: 20 });
+    const err = await client.fetchRecentMedia("x", { limit: 1 }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstagramApiError);
+    expect(err).toMatchObject({ status: 408, code: undefined });
+    expect(err.message).not.toContain(TOKEN);
+  });
+
+  test("keeps the HTTP status when an error body is not JSON", async () => {
+    const fn = (async () => new Response("<html>Bad Gateway</html>", { status: 502 })) as unknown as typeof fetch;
+    const client = createInstagramClient({ igUserId: "123", accessToken: TOKEN, fetch: fn });
+    const err = await client.fetchRecentMedia("x", { limit: 1 }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstagramApiError);
+    expect(err).toMatchObject({ status: 502, message: "Instagram API error (HTTP 502)" });
+  });
+
   test("rejects unexpected response shapes", async () => {
     const client = createInstagramClient({ igUserId: "123", accessToken: TOKEN, fetch: fakeFetch(200, { id: "1" }).fn });
     expect(client.fetchRecentMedia("x", { limit: 1 })).rejects.toThrow();

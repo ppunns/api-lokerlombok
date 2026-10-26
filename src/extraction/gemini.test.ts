@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { createGeminiExtractor, GeminiApiError, withFallback, type Extraction, type Extractor } from "./gemini";
+import {
+  createGeminiExtractor,
+  GEMINI_TIMEOUT_STATUS,
+  GeminiApiError,
+  withFallback,
+  type Extraction,
+  type Extractor,
+} from "./gemini";
 
 const extraction: Extraction = {
   is_job_post: true,
@@ -30,6 +37,10 @@ function fakeFetch(status: number, body: unknown) {
   }) as unknown as typeof fetch;
   return { fn, calls };
 }
+
+// Never answers; rejects only when the request's signal aborts.
+const hangingFetch = ((_url: string, init: RequestInit) =>
+  new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch;
 
 const ok = (output: unknown) => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }] });
 const input = {
@@ -69,6 +80,28 @@ describe("createGeminiExtractor", () => {
     expect(err).toMatchObject({ status: 429, message: "Resource exhausted" });
   });
 
+  test("times out a hanging request as a non-overload error", async () => {
+    const extract = createGeminiExtractor({ apiKey: "k", model: "m", fetch: hangingFetch, timeoutMs: 20 });
+    const err = await extract(input).catch((e) => e);
+    expect(err).toBeInstanceOf(GeminiApiError);
+    expect(err.status).toBe(GEMINI_TIMEOUT_STATUS);
+    expect(err.message).toContain("timed out");
+  });
+
+  test("keeps the HTTP status when an error body is not JSON", async () => {
+    const fn = (async () => new Response("<html>Bad Gateway</html>", { status: 502 })) as unknown as typeof fetch;
+    const err = await createGeminiExtractor({ apiKey: "k", model: "m", fetch: fn })(input).catch((e) => e);
+    expect(err).toBeInstanceOf(GeminiApiError);
+    expect(err).toMatchObject({ status: 502, message: "Gemini API error (HTTP 502)" });
+  });
+
+  test("reports a 200 response that is not JSON", async () => {
+    const fn = (async () => new Response("oops", { status: 200 })) as unknown as typeof fetch;
+    const err = await createGeminiExtractor({ apiKey: "k", model: "m", fetch: fn })(input).catch((e) => e);
+    expect(err).toBeInstanceOf(GeminiApiError);
+    expect(err).toMatchObject({ status: 200, message: "Gemini response invalid JSON" });
+  });
+
   test("rejects output that does not match the schema", async () => {
     const bad = { ...extraction, jobs: [{ title: "Kasir" }] };
     const extract = createGeminiExtractor({ apiKey: "k", model: "m", fetch: fakeFetch(200, ok(bad)).fn });
@@ -100,7 +133,7 @@ describe("withFallback", () => {
     expect(usage).toEqual({ primary: 0, fallback: 1 });
   });
 
-  test.each([429, 500, 400])("does not fall back on %d", async (status) => {
+  test.each([429, 500, 400, GEMINI_TIMEOUT_STATUS])("does not fall back on %d", async (status) => {
     let fallbackCalls = 0;
     const { extract } = withFallback(fails(status), async () => {
       fallbackCalls++;

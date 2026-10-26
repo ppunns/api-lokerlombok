@@ -20,7 +20,7 @@ Base URL dari env, jangan di-hardcode. Lokal: `http://localhost:3000`. Produksi 
 CORS sudah aktif untuk `GET`. Semua endpoint publik dan read-only, tanpa auth.
 
 ### GET /health
-→ `200 {"status":"ok"}`
+→ `200 {"status":"ok"}`, atau `503 {"status":"unavailable"}` jika database sedang tidak tersedia
 
 ### GET /jobs
 Daftar lowongan yang sudah tayang, urut dari postingan terbaru. Semua query opsional:
@@ -32,7 +32,7 @@ Daftar lowongan yang sudah tayang, urut dari postingan terbaru. Semua query opsi
 | `regency` | enum | Kabupaten/kota (lihat daftar di bawah) |
 | `employment_type` | enum | Jenis kerja |
 | `education_level` | enum | Pendidikan minimal |
-| `page` | int ≥ 1 | Default 1 |
+| `page` | int 1–1000 | Default 1 |
 | `limit` | int 1–50 | Default 20 |
 
 Parameter kosong (`?q=`) dianggap tidak diisi. Parameter tak dikenal diabaikan.

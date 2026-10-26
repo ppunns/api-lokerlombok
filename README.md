@@ -25,6 +25,7 @@ src/
   index.ts            entry server (koneksi DB + Bun)
   app.ts              app Hono: /health, /jobs, 404/500 JSON
   config.ts           validasi env dengan Zod
+  db.ts               koneksi Postgres dengan batas pool (API 5, script/pipeline 2)
   schemas/job.ts      schema Zod lowongan, query pencarian, tipe
   jobs/routes.ts      handler GET /jobs dan GET /jobs/:id
   jobs/repository.ts  query SQL (Bun.sql)
@@ -56,13 +57,14 @@ Hanya lowongan `published` yang tampil. `raw_caption`, `ocr_text`, `extraction_s
 CORS: hanya `GET` yang diizinkan lintas origin. Default semua origin (`*`). Batasi dengan
 `CORS_ORIGINS=https://domain-frontend,...` saat frontend sudah punya domain.
 
-- `GET /health` → `{ "status": "ok" }`
+- `GET /health` → `200 { "status": "ok" }` jika database menjawab dalam 2 detik, selain itu
+  `503 { "status": "unavailable" }` (cocok untuk health check hosting)
 - `GET /jobs`: cari lowongan, terbaru dulu. Query (semua opsional):
   - `q`: cari di judul, perusahaan, deskripsi (maks 100 karakter)
   - `location`: cocok sebagian dengan teks lokasi asli, tidak peka huruf besar/kecil
   - `regency`: kabupaten/kota, mis. `kota_mataram`, `lombok_tengah` (daftar di [docs/database.md](docs/database.md))
   - `employment_type`, `education_level`: nilai enum, lihat [docs/database.md](docs/database.md)
-  - `page` (default 1), `limit` (default 20, maks 50)
+  - `page` (default 1, maks 1000), `limit` (default 20, maks 50)
 
   Respons: `{ "data": [...], "pagination": { "page", "limit", "total", "total_pages" } }`.
   Query tidak valid → 400 `{ "error": "Invalid query", "details": {...} }`.

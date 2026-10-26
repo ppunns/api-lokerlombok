@@ -81,7 +81,8 @@ export const jobSearchQuerySchema = z.object({
   regency: z.enum(regencies).optional(),
   employment_type: z.enum(employmentTypes).optional(),
   education_level: z.enum(educationLevels).optional(),
-  page: z.coerce.number().int().min(1).default(1),
+  // Capped so huge pages cannot produce an out-of-range OFFSET (1000 × 50 jobs is far beyond the data).
+  page: z.coerce.number().int().min(1).max(1000).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 

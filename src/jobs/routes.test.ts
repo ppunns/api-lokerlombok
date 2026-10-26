@@ -36,7 +36,7 @@ function setup(total = 1) {
     },
     findPublishedById: async (id) => (id === job.id ? job : null),
   };
-  return { app: createApp({ jobs: repo }), calls };
+  return { app: createApp({ jobs: repo, pingDb: async () => {} }), calls };
 }
 
 describe("GET /jobs", () => {
@@ -78,6 +78,8 @@ describe("GET /jobs", () => {
     ["page=0", "page"],
     ["limit=51", "limit"],
     ["page=abc", "page"],
+    ["page=1001", "page"],
+    ["page=999999999999999", "page"],
     ["employment_type=fulltime", "employment_type"],
     ["regency=loteng", "regency"],
     [`q=${"a".repeat(101)}`, "q"],

@@ -2,7 +2,7 @@
 // Usage:
 //   bun scripts/pipeline.ts          keep running, one round on PIPELINE_CRON (default every 15 minutes)
 //   bun scripts/pipeline.ts --once   run a single round and exit (for an external scheduler)
-import { SQL } from "bun";
+import { connectDb, POOL_MAX } from "../src/db";
 import { z } from "zod";
 import { config } from "../src/config";
 import { createGeminiExtractor, withFallback } from "../src/extraction/gemini";
@@ -22,7 +22,7 @@ const env = z
   })
   .parse(Bun.env);
 
-const sql = new SQL(config.DATABASE_URL);
+const sql = connectDb(config.DATABASE_URL, POOL_MAX.worker);
 const client = createInstagramClient({ igUserId: env.IG_USER_ID, accessToken: env.IG_ACCESS_TOKEN });
 const { extract, usage } = withFallback(
   createGeminiExtractor({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }),

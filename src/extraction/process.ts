@@ -1,12 +1,15 @@
 import type { SQL } from "bun";
 import { upsertJobs, validateJobs } from "../jobs/import";
 import type { JobInsert } from "../schemas/job";
-import { GeminiApiError, type Extraction, type Extractor } from "./gemini";
+import { GEMINI_TIMEOUT_STATUS, GeminiApiError, type Extraction, type Extractor } from "./gemini";
 
 export const MAX_ATTEMPTS = 3;
 const MAX_IMAGES = 5;
+const IMAGE_TIMEOUT_MS = 20_000;
 // Gemini overload errors: retried with these delays, then the run stops.
-const TRANSIENT_STATUSES = [500, 503];
+// Client-side timeouts (GEMINI_TIMEOUT_STATUS) are not listed: they fail the post and spend an attempt,
+// so a post that always times out cannot block every run.
+const TRANSIENT_STATUSES = [500, 502, 503, 504];
 const RETRY_DELAYS_MS = [2_000, 8_000];
 
 export interface SourcePost {
@@ -20,13 +23,18 @@ export interface SourcePost {
 }
 
 // Downloads an image into memory for the model; it is never written to disk or the database.
-export async function fetchImage(url: string, doFetch: typeof fetch = fetch) {
-  const res = await doFetch(url);
-  if (!res.ok) throw new Error(`image download failed (${res.status})`);
-  return {
-    mimeType: res.headers.get("content-type")?.split(";")[0] ?? "image/jpeg",
-    data: Buffer.from(await res.arrayBuffer()).toString("base64"),
-  };
+export async function fetchImage(url: string, doFetch: typeof fetch = fetch, timeoutMs = IMAGE_TIMEOUT_MS) {
+  const signal = AbortSignal.timeout(timeoutMs);
+  try {
+    const res = await doFetch(url, { signal });
+    if (!res.ok) throw new Error(`image download failed (${res.status})`);
+    return {
+      mimeType: res.headers.get("content-type")?.split(";")[0] ?? "image/jpeg",
+      data: Buffer.from(await res.arrayBuffer()).toString("base64"),
+    };
+  } catch (err) {
+    throw signal.aborted ? new Error(`image download timed out after ${timeoutMs}ms`) : err;
+  }
 }
 
 export function toJobInserts(post: SourcePost, extraction: Extraction): JobInsert[] {
@@ -88,10 +96,11 @@ export async function processPendingPosts({
     no_jobs: 0,
     failed: 0,
     jobs: 0,
-    stopped: null as null | "rate_limited" | "unavailable",
+    stopped: null as null | "rate_limited" | "unavailable" | "timeout",
   };
   for (const post of posts) {
     let outcome: Outcome;
+    let stopAfterPost = false;
     let error: string | null = null;
     let jobs: JobInsert[] = [];
     try {
@@ -115,6 +124,8 @@ export async function processPendingPosts({
       }
       outcome = "failed";
       error = err instanceof Error ? err.message : String(err);
+      // A timeout spends this post's attempt, then stops the run so a slow Gemini does not fail the whole batch.
+      stopAfterPost = err instanceof GeminiApiError && err.status === GEMINI_TIMEOUT_STATUS;
     }
 
     const extractedCount = jobs.length;
@@ -145,6 +156,10 @@ export async function processPendingPosts({
     });
     counts[outcome]++;
     counts.jobs += jobs.length;
+    if (stopAfterPost) {
+      counts.stopped = "timeout";
+      break;
+    }
   }
   return counts;
 }

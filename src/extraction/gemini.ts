@@ -68,12 +68,19 @@ export interface GeminiClientOptions {
   apiKey: string;
   model: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
 }
 
-export function createGeminiExtractor({ apiKey, model, fetch: doFetch = fetch }: GeminiClientOptions) {
+// Status for a request this client gave up on. It is not an overload status, so it is neither
+// retried nor sent to the fallback model; the post spends one attempt (see extraction/process.ts).
+export const GEMINI_TIMEOUT_STATUS = 408;
+
+export function createGeminiExtractor({ apiKey, model, fetch: doFetch = fetch, timeoutMs = 60_000 }: GeminiClientOptions) {
   return async function extract(input: ExtractionInput): Promise<Extraction> {
     const text = `Post date: ${input.postedAt.toISOString().slice(0, 10)}\nCaption:\n${input.caption ?? "(no caption)"}`;
+    const signal = AbortSignal.timeout(timeoutMs);
     const res = await doFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      signal,
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
@@ -86,10 +93,17 @@ export function createGeminiExtractor({ apiKey, model, fetch: doFetch = fetch }:
         ],
         generationConfig: { temperature: 0, responseMimeType: "application/json", responseJsonSchema },
       }),
+    }).catch((err) => {
+      throw signal.aborted ? new GeminiApiError(GEMINI_TIMEOUT_STATUS, `Gemini request timed out after ${timeoutMs}ms`) : err;
     });
 
-    const body = (await res.json()) as any;
-    if (!res.ok) throw new GeminiApiError(res.status, body?.error?.message ?? "Gemini API error");
+    // Gateways can answer with HTML (e.g. 502); keep the real status instead of a JSON parse error.
+    const body = (await res.json().catch(() => null)) as any;
+    if (!res.ok) throw new GeminiApiError(res.status, body?.error?.message ?? `Gemini API error (HTTP ${res.status})`);
+    if (body === null) {
+      const reason = signal.aborted ? `timed out after ${timeoutMs}ms` : "invalid JSON";
+      throw new GeminiApiError(signal.aborted ? GEMINI_TIMEOUT_STATUS : res.status, `Gemini response ${reason}`);
+    }
 
     const output = body?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (typeof output !== "string") {

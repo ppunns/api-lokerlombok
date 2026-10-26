@@ -38,12 +38,13 @@ export interface InstagramClientOptions {
   igUserId: string;
   accessToken: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
 }
 
 const MEDIA_FIELDS = "id,caption,media_type,media_url,permalink,timestamp,children{media_type,media_url}";
 
 // Reads another professional account's recent media via Business Discovery.
-export function createInstagramClient({ igUserId, accessToken, fetch: doFetch = fetch }: InstagramClientOptions) {
+export function createInstagramClient({ igUserId, accessToken, fetch: doFetch = fetch, timeoutMs = 30_000 }: InstagramClientOptions) {
   return {
     async fetchRecentMedia(username: string, opts: { limit: number; after?: string }) {
       const media = `media.limit(${opts.limit})${opts.after ? `.after(${opts.after})` : ""}{${MEDIA_FIELDS}}`;
@@ -51,11 +52,17 @@ export function createInstagramClient({ igUserId, accessToken, fetch: doFetch = 
       const url = `https://graph.facebook.com/${igUserId}?fields=${encodeURIComponent(fields)}`;
 
       // Token in a header so it never ends up in URLs or error messages.
-      const res = await doFetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const body = (await res.json()) as { error?: { code?: number; message?: string } };
+      const signal = AbortSignal.timeout(timeoutMs);
+      const timedOut = () => new InstagramApiError(408, undefined, `Instagram request timed out after ${timeoutMs}ms`);
+      const res = await doFetch(url, { signal, headers: { Authorization: `Bearer ${accessToken}` } }).catch((err) => {
+        throw signal.aborted ? timedOut() : err;
+      });
+      // Gateways can answer with HTML (e.g. 502); keep the real status instead of a JSON parse error.
+      const body = (await res.json().catch(() => null)) as { error?: { code?: number; message?: string } } | null;
       if (!res.ok) {
-        throw new InstagramApiError(res.status, body.error?.code, body.error?.message ?? "Instagram API error");
+        throw new InstagramApiError(res.status, body?.error?.code, body?.error?.message ?? `Instagram API error (HTTP ${res.status})`);
       }
+      if (body === null) throw signal.aborted ? timedOut() : new InstagramApiError(res.status, undefined, "Instagram response is not JSON");
 
       const { media: page } = responseSchema.parse(body).business_discovery;
       return { media: page.data, after: page.paging?.cursors?.after };
