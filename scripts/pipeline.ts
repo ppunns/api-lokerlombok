@@ -1,4 +1,5 @@
-// Automatic pipeline: collect new Instagram posts, then extract jobs (as drafts) with Gemini.
+// Automatic pipeline: collect new Instagram posts, then extract jobs with Gemini
+// (published right away unless AUTO_PUBLISH=false, which keeps them as drafts for review).
 // Usage:
 //   bun scripts/pipeline.ts          keep running, one round on PIPELINE_CRON (default every 15 minutes)
 //   bun scripts/pipeline.ts --once   run a single round and exit (for an external scheduler)
@@ -19,6 +20,8 @@ const env = z
     GEMINI_FALLBACK_MODEL: z.string().default("gemini-3.5-flash-lite"),
     PIPELINE_CRON: z.string().default("*/15 * * * *"),
     EXTRACT_BATCH: z.coerce.number().int().min(1).max(100).default(20),
+    // true: AI-extracted jobs go public immediately; false: they stay drafts until `bun run review publish`.
+    AUTO_PUBLISH: z.stringbool().default(true),
   })
   .parse(Bun.env);
 
@@ -31,7 +34,7 @@ const { extract, usage } = withFallback(
 
 async function round() {
   const started = new Date().toISOString();
-  const r = await runPipelineOnce({ sql, client, username: env.IG_TARGET_USERNAME, extract, extractLimit: env.EXTRACT_BATCH });
+  const r = await runPipelineOnce({ sql, client, username: env.IG_TARGET_USERNAME, extract, extractLimit: env.EXTRACT_BATCH, autoPublish: env.AUTO_PUBLISH });
   if (r.skipped) {
     console.log(`[${started}] skipped: another pipeline run is still in progress`);
     return true;
@@ -60,7 +63,7 @@ if (Bun.argv.includes("--once")) {
     }
   };
   console.log(
-    `Pipeline for @${env.IG_TARGET_USERNAME} on "${env.PIPELINE_CRON}" (model ${env.GEMINI_MODEL}, fallback on 503: ${env.GEMINI_FALLBACK_MODEL})`,
+    `Pipeline for @${env.IG_TARGET_USERNAME} on "${env.PIPELINE_CRON}" (model ${env.GEMINI_MODEL}, fallback on 503: ${env.GEMINI_FALLBACK_MODEL}, ${env.AUTO_PUBLISH ? "auto-publish" : "drafts for review"})`,
   );
   await tick();
   Bun.cron(env.PIPELINE_CRON, tick);

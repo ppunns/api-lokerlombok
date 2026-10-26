@@ -74,6 +74,12 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
     expect(jobs.map((j: { publication_status: string }) => j.publication_status)).toEqual(["draft", "draft"]);
   });
 
+  test("autoPublish passes through the pipeline round", async () => {
+    await round({ ...opts(feedClient([media(1)])), autoPublish: true });
+    const jobs = await sql`select publication_status from public.jobs`;
+    expect(jobs).toEqual([{ publication_status: "published" }]);
+  });
+
   test("a second round with nothing new does not reprocess or duplicate", async () => {
     await round(opts(feedClient([media(1)])));
     const r = await round(opts(feedClient([media(1)])));

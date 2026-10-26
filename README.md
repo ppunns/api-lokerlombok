@@ -34,14 +34,14 @@ src/
   instagram/client.ts client Business Discovery (Instagram Graph API)
   collector/collect.ts  ambil postingan baru → tabel source_posts
   extraction/gemini.ts  baca poster + caption dengan Gemini → JSON lowongan
-  extraction/process.ts proses source_posts pending → jobs (draft)
+  extraction/process.ts proses source_posts pending → jobs (langsung tayang, atau draft)
   pipeline/run.ts     satu putaran otomatis: collect lalu extract
 scripts/seed.ts       CLI input data contoh / manual
 scripts/check-instagram.ts  uji akses Instagram (read-only)
 scripts/check-api-role.ts   uji API_DATABASE_URL benar-benar read-only (lihat docs/database.md)
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
-scripts/review.ts     CLI cek dan publish lowongan draft
+scripts/review.ts     CLI cek, publish, dan sembunyikan lowongan
 scripts/pipeline.ts   pipeline otomatis (collect + extract) dengan polling
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
@@ -104,8 +104,9 @@ satu minggu terakhir, bukan seluruh riwayat akun. Postingan yang sama tidak pern
 
 Mengirim caption dan gambar poster (maks. 5 per postingan, diunduh hanya di memori, tidak
 disimpan) ke Gemini (`gemini-3.1-flash-lite`, bisa diganti lewat `GEMINI_MODEL`). Hasilnya
-divalidasi Zod lalu disimpan ke `jobs` sebagai **draft**, sehingga belum tampil ke publik sampai
-dicek. Transkripsi teks poster disimpan di `jobs.ocr_text` untuk audit.
+divalidasi Zod lalu disimpan ke `jobs` dan **langsung tayang** (`AUTO_PUBLISH`, default `true`).
+Dengan `AUTO_PUBLISH=false` lowongan disimpan sebagai **draft** sampai di-review. Hasil yang gagal
+validasi tidak pernah tampil, dan `extraction_status` tetap `extracted` (hasil AI, belum diverifikasi). Transkripsi teks poster disimpan di `jobs.ocr_text` untuk audit.
 
 ```bash
 bun run extract              # proses hingga 20 postingan pending (terbaru dulu)
@@ -122,7 +123,8 @@ menimpa lowongan yang sudah di-publish atau di-reject.
 ## Pipeline otomatis
 
 Menggabungkan collect dan extract: setiap putaran mengambil postingan baru @lokerlombok lalu
-mengekstrak lowongan dari postingan `pending` (maks. `EXTRACT_BATCH`, default 20) sebagai draft.
+mengekstrak lowongan dari postingan `pending` (maks. `EXTRACT_BATCH`, default 20), lalu langsung
+menayangkannya (atau sebagai draft jika `AUTO_PUBLISH=false`).
 
 ```bash
 bun run pipeline        # terus berjalan, satu putaran tiap PIPELINE_CRON (default */15 * * * *)
@@ -132,12 +134,14 @@ bun run pipeline:once   # satu putaran lalu keluar (untuk cron/scheduler ekstern
 - Putaran berikutnya dilewati jika putaran sebelumnya belum selesai.
 - Jika collect gagal (mis. token Instagram kedaluwarsa, error 190), extract tetap memproses
   postingan yang sudah tersimpan, dan log menyebut bahwa token perlu diperbarui.
-- Postingan yang sudah diproses tidak diekstrak ulang; lowongan tetap draft sampai di-review.
+- Postingan yang sudah diproses tidak diekstrak ulang.
 - Proses harus terus hidup agar otomatis: jalankan di server/hosting, bukan terminal yang ditutup.
 
 ## Review dan publish
 
-Lowongan hasil AI masuk sebagai `draft` dan baru tampil di API setelah di-publish.
+Secara default lowongan hasil AI langsung tayang; gunakan `reject` untuk menyembunyikan yang salah
+atau mencurigakan. Dengan `AUTO_PUBLISH=false`, lowongan masuk sebagai `draft` dan baru tampil
+setelah di-publish.
 
 ```bash
 bun run review                    # daftar draft per postingan + link Instagram
@@ -148,7 +152,8 @@ bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah t
 
 `<id>` cukup 8 karakter pertama dari daftar. Bandingkan dengan postingan aslinya lewat link.
 Untuk memperbaiki isi lowongan (mis. nama perusahaan salah baca), edit barisnya di Supabase
-Dashboard → Table Editor → `jobs`, lalu publish.
+Dashboard → Table Editor → `jobs`. Lowongan yang sudah tayang atau ditolak tidak ditimpa
+ekstraksi ulang.
 
 ## Deploy ke Google Cloud
 

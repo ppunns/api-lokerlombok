@@ -10,6 +10,7 @@ export interface PipelineOptions {
   username: string;
   extract: Extractor;
   extractLimit: number;
+  autoPublish?: boolean;
 }
 
 export function describeError(err: unknown): string {
@@ -26,14 +27,15 @@ export const PIPELINE_LOCK_KEY = 4_120_261_027;
 // One polling round: collect new posts, then extract jobs from pending ones.
 // A failed collect does not block extracting posts that are already stored.
 // If another round is still running (schedulers can start overlapping runs), this one does nothing.
-export async function runPipelineOnce({ sql, client, username, extract, extractLimit }: PipelineOptions) {
+export async function runPipelineOnce(options: PipelineOptions) {
+  const { sql } = options;
   // Session-level lock on a reserved connection; it is released on unlock or when the process dies.
   const lockConn = await sql.reserve();
   try {
     const [{ locked }] = await lockConn`select pg_try_advisory_lock(${PIPELINE_LOCK_KEY}) as locked`;
     if (!locked) return { skipped: true as const };
     try {
-      return { skipped: false as const, ...(await runRound({ sql, client, username, extract, extractLimit })) };
+      return { skipped: false as const, ...(await runRound(options)) };
     } finally {
       await lockConn`select pg_advisory_unlock(${PIPELINE_LOCK_KEY})`;
     }
@@ -42,7 +44,7 @@ export async function runPipelineOnce({ sql, client, username, extract, extractL
   }
 }
 
-async function runRound({ sql, client, username, extract, extractLimit }: PipelineOptions) {
+async function runRound({ sql, client, username, extract, extractLimit, autoPublish }: PipelineOptions) {
   const result = {
     collect: null as Awaited<ReturnType<typeof collectNewPosts>> | null,
     collectError: null as string | null,
@@ -56,7 +58,7 @@ async function runRound({ sql, client, username, extract, extractLimit }: Pipeli
     result.collectError = describeError(err);
   }
   try {
-    result.extract = await processPendingPosts({ sql, extract, limit: extractLimit });
+    result.extract = await processPendingPosts({ sql, extract, limit: extractLimit, autoPublish });
   } catch (err) {
     result.extractError = describeError(err);
   }

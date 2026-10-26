@@ -2,7 +2,7 @@
 
 Kamu membangun **frontend** untuk "Loker Lombok": website pencarian lowongan kerja di Lombok/NTB.
 Data lowongan dikumpulkan otomatis dari postingan Instagram @lokerlombok, dibaca AI dari poster,
-lalu dicek manual oleh admin sebelum tampil. Website ini BUKAN tempat perusahaan memasang lowongan
+lalu langsung ditayangkan otomatis (admin bisa menyembunyikan yang salah). Website ini BUKAN tempat perusahaan memasang lowongan
 dan BUKAN sistem lamaran: pengguna mencari lowongan, lalu melamar sendiri lewat kontak di lowongan
 atau postingan Instagram aslinya.
 
@@ -166,7 +166,7 @@ Loker Lombok. Hindari bahasa kaku seperti "Anda" atau "dengan ini".
 ## Di luar cakupan (jangan dibuat)
 
 Login, form pasang lowongan, form lamaran, panel admin, dan akses langsung ke database.
-Review dan publish lowongan dilakukan admin lewat backend.
+Publikasi otomatis; menyembunyikan lowongan dilakukan admin lewat backend.
 
 ## Cara kerja
 

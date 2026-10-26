@@ -84,6 +84,31 @@ describe.skipIf(!testDatabaseUrl)("processPendingPosts (database)", () => {
     expect(await status("2")).toMatchObject({ processing_status: "no_jobs" });
   });
 
+  test("autoPublish makes extracted jobs public, still marked as AI-extracted", async () => {
+    await addPost("1", "multi");
+    await addPost("2", "iklan", 1);
+    const extract = fakeExtractor({
+      multi: { is_job_post: true, ocr_text: "HIRING", jobs: [job("Kasir"), job("Gudang")] },
+      iklan: { is_job_post: false, ocr_text: "PROMO", jobs: [] },
+    });
+    const result = await processPendingPosts({ sql, extract, limit: 10, loadImage, autoPublish: true });
+    expect(result).toMatchObject({ processed: 1, no_jobs: 1, jobs: 2 });
+    const rows = await sql`select title, extraction_status, publication_status from public.jobs order by source_job_index`;
+    expect(rows).toEqual([
+      { title: "Kasir", extraction_status: "extracted", publication_status: "published" },
+      { title: "Gudang", extraction_status: "extracted", publication_status: "published" },
+    ]);
+  });
+
+  test("autoPublish never publishes invalid extractions", async () => {
+    await addPost("1", "bad");
+    const bad = { ...job("Kasir"), salary_min: 5_000_000, salary_max: 1_000_000 };
+    const extract = fakeExtractor({ bad: { is_job_post: true, ocr_text: null, jobs: [bad] } });
+    const result = await processPendingPosts({ sql, extract, limit: 10, loadImage, autoPublish: true });
+    expect(result).toMatchObject({ failed: 1, jobs: 0 });
+    expect((await sql`select count(*)::int n from public.jobs`)[0].n).toBe(0);
+  });
+
   test("re-extraction removes leftover drafts but keeps reviewed jobs", async () => {
     await addPost("1", "first");
     const three = { is_job_post: true, ocr_text: null, jobs: [job("A"), job("B"), job("C")] };

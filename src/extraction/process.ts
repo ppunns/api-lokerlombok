@@ -37,7 +37,9 @@ export async function fetchImage(url: string, doFetch: typeof fetch = fetch, tim
   }
 }
 
-export function toJobInserts(post: SourcePost, extraction: Extraction): JobInsert[] {
+// AI output is never marked as verified: extraction_status stays "extracted" either way.
+// publish = true (AUTO_PUBLISH) makes jobs public right away; otherwise they wait as drafts for review.
+export function toJobInserts(post: SourcePost, extraction: Extraction, publish = false): JobInsert[] {
   return extraction.jobs.map((job, index) => ({
     ...job,
     source_platform: "instagram",
@@ -49,8 +51,7 @@ export function toJobInserts(post: SourcePost, extraction: Extraction): JobInser
     raw_caption: post.caption,
     ocr_text: extraction.ocr_text,
     extraction_status: "extracted",
-    // Drafts until reviewed; AI output is not treated as verified.
-    publication_status: "draft",
+    publication_status: publish ? "published" : "draft",
   }));
 }
 
@@ -60,6 +61,8 @@ export interface ProcessOptions {
   limit: number;
   loadImage?: (url: string) => Promise<{ mimeType: string; data: string }>;
   retryDelaysMs?: number[];
+  // Publish extracted jobs immediately instead of saving them as drafts (default: drafts).
+  autoPublish?: boolean;
 }
 
 type Outcome = "processed" | "no_jobs" | "failed";
@@ -82,6 +85,7 @@ export async function processPendingPosts({
   limit,
   loadImage = (u) => fetchImage(u),
   retryDelaysMs = RETRY_DELAYS_MS,
+  autoPublish = false,
 }: ProcessOptions) {
   const posts: SourcePost[] = await sql`
     select id, source_account, source_post_id, source_post_url, source_posted_at, caption, media_urls
@@ -107,7 +111,7 @@ export async function processPendingPosts({
       const images = await Promise.all(post.media_urls.slice(0, MAX_IMAGES).map(loadImage));
       const input = { caption: post.caption, postedAt: post.source_posted_at, images };
       const extraction = await extractWithRetry(extract, input, retryDelaysMs);
-      const validated = validateJobs(toJobInserts(post, extraction));
+      const validated = validateJobs(toJobInserts(post, extraction, autoPublish));
       if (extraction.jobs.length === 0) outcome = "no_jobs";
       else if (validated.ok) {
         outcome = "processed";
