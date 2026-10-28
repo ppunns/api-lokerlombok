@@ -14,6 +14,7 @@
     "collect:watch": "bun scripts/collect.ts --watch",
     "extract": "bun scripts/extract.ts",
     "review": "bun scripts/review.ts",
+    "reset": "bun scripts/reset.ts",
     "pipeline": "bun scripts/pipeline.ts",
     "pipeline:once": "bun scripts/pipeline.ts --once"
   },

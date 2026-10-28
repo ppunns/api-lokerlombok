@@ -42,6 +42,7 @@ scripts/check-api-role.ts   uji API_DATABASE_URL benar-benar read-only (lihat do
 scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
 scripts/review.ts     CLI cek, publish, dan sembunyikan lowongan
+scripts/reset.ts      CLI hapus semua jobs dan source_posts (butuh --yes)
 scripts/pipeline.ts   pipeline otomatis (collect + extract) dengan polling
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
@@ -158,6 +159,20 @@ bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah t
 Untuk memperbaiki isi lowongan (mis. nama perusahaan salah baca), edit barisnya di Supabase
 Dashboard → Table Editor → `jobs`. Lowongan yang sudah tayang atau ditolak tidak ditimpa
 ekstraksi ulang.
+
+## Reset database
+
+Menghapus **semua** lowongan (`jobs`) dan **semua** postingan mentah (`source_posts`) untuk mulai dari nol.
+
+```bash
+bun run reset         # tampilkan host database dan jumlah yang akan dihapus, tidak mengubah apa pun
+bun run reset --yes   # hapus semuanya (satu transaksi)
+```
+
+Reset ditolak selama putaran pipeline sedang berjalan. Setelah reset, collect berikutnya menganggap
+postingan terbaru sebagai baru lagi (maks. 100 postingan) dan mengekstraknya ulang dengan Gemini
+(memakai kuota). Lowongan yang sebelumnya di-reject bisa tayang lagi. Jika tidak ingin database terisi
+ulang, hentikan pipeline (Cloud Scheduler) dulu.
 
 ## Deploy ke Google Cloud
 
