@@ -2,13 +2,14 @@
 // Usage:
 //   bun scripts/review.ts                    list draft jobs grouped by post
 //   bun scripts/review.ts recent [days]      list jobs published in the last days (default 3)
+//   bun scripts/review.ts stats              count jobs and source posts per status
 //   bun scripts/review.ts show <id>          show one job in full
 //   bun scripts/review.ts publish <id...>    make jobs public
 //   bun scripts/review.ts reject <id...>     hide jobs (also unpublishes)
 // <id> can be the first 8 characters shown in the list.
 import { connectDb, POOL_MAX } from "../src/db";
 import { config } from "../src/config";
-import { getJob, listDrafts, listRecentlyPublished, resolveJobIds, setPublicationStatus, type DraftJob } from "../src/jobs/review";
+import { dataSummary, getJob, listDrafts, listRecentlyPublished, resolveJobIds, setPublicationStatus, type DraftJob } from "../src/jobs/review";
 
 const [command = "list", ...args] = Bun.argv.slice(2);
 const sql = connectDb(config.adminDatabaseUrl(), POOL_MAX.worker);
@@ -38,6 +39,13 @@ try {
     const jobs = await listRecentlyPublished(sql, days);
     printJobs(jobs);
     console.log(jobs.length ? `\n${jobs.length} job(s) published in the last ${days} day(s). Hide one with: reject <id>` : `Nothing published in the last ${days} day(s).`);
+  } else if (command === "stats") {
+    const summary = await dataSummary(sql);
+    for (const [table, counts] of Object.entries(summary)) {
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      const parts = Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ");
+      console.log(`${table}: ${total}${parts ? ` (${parts})` : ""}`);
+    }
   } else if (command === "show") {
     const [id] = await resolveJobIds(sql, args.slice(0, 1));
     const job = await getJob(sql, id!);
@@ -51,7 +59,7 @@ try {
     const count = await setPublicationStatus(sql, ids, command === "publish" ? "published" : "rejected");
     console.log(`${command === "publish" ? "Published" : "Rejected"} ${count} job(s).`);
   } else {
-    throw new Error(`unknown command "${command}" (use list, recent, show, publish, reject)`);
+    throw new Error(`unknown command "${command}" (use list, recent, stats, show, publish, reject)`);
   }
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);

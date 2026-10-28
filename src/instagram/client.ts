@@ -24,6 +24,20 @@ const responseSchema = z.object({
 
 export type InstagramMedia = z.infer<typeof mediaSchema>;
 
+// Account collected by default (pipeline, collector, admin menu); override with IG_TARGET_USERNAME or --account.
+export const DEFAULT_TARGET_USERNAME = "bursalokerlombok";
+
+// Instagram usernames: letters, digits, "." and "_", up to 30 characters. Checked before the name is put
+// into a Graph API field expansion, where other characters could change the query.
+const USERNAME = /^[A-Za-z0-9._]{1,30}$/;
+
+// User input such as " @lokerlombok " -> "lokerlombok".
+export const instagramUsername = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/^@/, ""))
+  .pipe(z.string().regex(USERNAME, "not a valid Instagram username"));
+
 export class InstagramApiError extends Error {
   constructor(
     readonly status: number,
@@ -47,6 +61,9 @@ const MEDIA_FIELDS = "id,caption,media_type,media_url,permalink,timestamp,childr
 export function createInstagramClient({ igUserId, accessToken, fetch: doFetch = fetch, timeoutMs = 30_000 }: InstagramClientOptions) {
   return {
     async fetchRecentMedia(username: string, opts: { limit: number; after?: string }) {
+      if (!USERNAME.test(username)) {
+        throw new Error(`"${username}" is not a valid Instagram username`);
+      }
       const media = `media.limit(${opts.limit})${opts.after ? `.after(${opts.after})` : ""}{${MEDIA_FIELDS}}`;
       const fields = `business_discovery.username(${username}){${media}}`;
       const url = `https://graph.facebook.com/${igUserId}?fields=${encodeURIComponent(fields)}`;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createInstagramClient, InstagramApiError } from "./client";
+import { createInstagramClient, InstagramApiError, instagramUsername } from "./client";
 
 const TOKEN = "EAA-secret-token";
 
@@ -89,5 +89,24 @@ describe("createInstagramClient", () => {
   test("rejects unexpected response shapes", async () => {
     const client = createInstagramClient({ igUserId: "123", accessToken: TOKEN, fetch: fakeFetch(200, { id: "1" }).fn });
     expect(client.fetchRecentMedia("x", { limit: 1 })).rejects.toThrow();
+  });
+});
+
+describe("instagram username", () => {
+  test("accepts usernames, also with @ and spaces", () => {
+    expect(instagramUsername.parse(" @loker.lombok_ ")).toBe("loker.lombok_");
+  });
+
+  test("rejects anything that could change the Graph API query", () => {
+    for (const bad of ["", "loker lombok", "a){id}", "x,y", "a".repeat(31)]) {
+      expect(instagramUsername.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  test("the client refuses an invalid username without calling Instagram", async () => {
+    const { fn, calls } = fakeFetch(200, mediaPage);
+    const client = createInstagramClient({ igUserId: "1", accessToken: TOKEN, fetch: fn });
+    await expect(client.fetchRecentMedia("a){id}", { limit: 5 })).rejects.toThrow("not a valid Instagram username");
+    expect(calls).toHaveLength(0);
   });
 });

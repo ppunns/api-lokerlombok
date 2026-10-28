@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { SQL } from "bun";
 import type { InstagramClient, InstagramMedia } from "../instagram/client";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
-import { collectNewPosts } from "./collect";
+import { collectNewPosts, collectPostsSince } from "./collect";
 
 const media = (id: number): InstagramMedia => ({
   id: String(id),
@@ -72,6 +72,31 @@ describe.skipIf(!testDatabaseUrl)("collectNewPosts (database)", () => {
     expect(result).toEqual({ fetched: 5, inserted: 3, pages: 1, reachedKnown: true });
     expect(requests).toEqual([undefined]);
     expect(await ids()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  });
+
+  // media(n) is posted at 00:n on 2026-10-25, so this keeps posts 8 and newer.
+  const since = new Date(Date.UTC(2026, 9, 25, 0, 8));
+
+  test("collectPostsSince stores every post in the period, skipping known ones without stopping", async () => {
+    await collectNewPosts({ sql, client: fakeClient(newestFirst(1, 15)).client, username: "lokerlombok", pageSize: 3, maxPages: 1 });
+    const { client, requests } = fakeClient(newestFirst(1, 20));
+    const result = await collectPostsSince({ sql, client, username: "lokerlombok", since, pageSize: 5 });
+
+    // Pages: 20-16, 15-11, 10-6 (6 and 7 are older, so the period is covered there).
+    expect(result).toEqual({ in_range: 13, inserted: 10, pages: 3, complete: true });
+    expect(requests).toEqual([undefined, "5", "10"]);
+    expect(await ids()).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  });
+
+  test("collectPostsSince is complete at the end of the feed, and reports when maxPages runs out", async () => {
+    expect(await collectPostsSince({ sql, client: fakeClient(newestFirst(10, 12)).client, username: "lokerlombok", since })).toEqual({
+      in_range: 3,
+      inserted: 3,
+      pages: 1,
+      complete: true,
+    });
+    const capped = await collectPostsSince({ sql, client: fakeClient(newestFirst(1, 20)).client, username: "lokerlombok", since, pageSize: 5, maxPages: 2 });
+    expect(capped).toEqual({ in_range: 10, inserted: 8, pages: 2, complete: false });
   });
 
   test("a run with nothing new inserts nothing", async () => {

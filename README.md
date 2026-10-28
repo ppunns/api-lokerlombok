@@ -1,6 +1,6 @@
 # loker-lombok-instagram
 
-Backend API pencarian lowongan kerja dari postingan Instagram (@lokerlombok).
+Backend API pencarian lowongan kerja dari postingan Instagram (default @bursalokerlombok).
 Stack: Bun, TypeScript, Hono, Supabase PostgreSQL, Zod.
 
 ## Setup
@@ -43,6 +43,8 @@ scripts/collect.ts    CLI collector (sekali jalan / --watch)
 scripts/extract.ts    CLI ekstraksi lowongan dengan Gemini
 scripts/review.ts     CLI cek, publish, dan sembunyikan lowongan
 scripts/reset.ts      CLI hapus semua jobs dan source_posts (butuh --yes)
+scripts/admin.ts      menu interaktif untuk review, pipeline, jadwal, dan reset
+scripts/schedule.ts   CLI jadwal pengambilan otomatis (akun, jam WITA, publish/draft)
 scripts/pipeline.ts   pipeline otomatis (collect + extract) dengan polling
 data/                 data contoh (fiktif)
 supabase/migrations/  migration SQL
@@ -88,7 +90,8 @@ bukan diduplikasi, jadi aman dijalankan ulang. Data contoh bersifat fiktif. Hapu
 
 ## Collector Instagram
 
-Mengambil postingan terbaru @lokerlombok lewat Business Discovery dan menyimpannya ke tabel
+Mengambil postingan terbaru akun target (default @bursalokerlombok, ganti dengan `IG_TARGET_USERNAME`)
+lewat Business Discovery dan menyimpannya ke tabel
 `source_posts` dengan status `pending` (OCR/ekstraksi lowongan belum ada). Butuh `IG_USER_ID` dan
 `IG_ACCESS_TOKEN` di `.env` (lihat [docs/instagram-access.md](docs/instagram-access.md)).
 
@@ -123,13 +126,15 @@ menimpa lowongan yang sudah di-publish atau di-reject.
 
 ## Pipeline otomatis
 
-Menggabungkan collect dan extract: setiap putaran mengambil postingan baru @lokerlombok lalu
+Menggabungkan collect dan extract: setiap putaran mengambil postingan baru akun target (default @bursalokerlombok) lalu
 mengekstrak lowongan dari postingan `pending` (maks. `EXTRACT_BATCH`, default 20), lalu langsung
 menayangkannya (atau sebagai draft jika `AUTO_PUBLISH=false`).
 
 ```bash
 bun run pipeline        # terus berjalan, satu putaran tiap PIPELINE_CRON (default */15 * * * *)
 bun run pipeline:once   # satu putaran lalu keluar (untuk cron/scheduler eksternal)
+bun scripts/pipeline.ts --once --account lokerlombok --days 7   # ambil ulang periode tertentu (1-30 hari)
+bun scripts/pipeline.ts --once --draft                          # --draft / --publish menimpa AUTO_PUBLISH untuk run ini
 ```
 
 - Putaran berikutnya dilewati jika putaran sebelumnya belum selesai.
@@ -141,6 +146,26 @@ bun run pipeline:once   # satu putaran lalu keluar (untuk cron/scheduler ekstern
   langsung disimpan sebagai `expired`, tidak sempat tayang.
 - Proses harus terus hidup agar otomatis: jalankan di server/hosting, bukan terminal yang ditutup.
 
+## Jadwal otomatis
+
+Atur akun, jam (WITA), dan publish/draft untuk pengambilan otomatis lewat `bun run admin` → "Jadwal
+otomatis", atau langsung:
+
+```bash
+bun run schedule                                     # lihat jadwal
+bun run schedule set --account bursalokerlombok --times 07:00,19:00 --draft   # atau --publish
+bun run schedule disable                             # matikan (enable untuk menyalakan lagi)
+```
+
+Jadwal disimpan di tabel `pipeline_schedule` (migration `20261028010000`). Pipeline tetap dipicu
+sering (Cloud Scheduler tiap 15 menit, atau `bun run pipeline`). Pada pemicuan pertama setelah jam
+terjadwal, pipeline mengambil semua postingan sejak pengambilan terakhir (dengan overlap 1 jam, maks.
+7 hari ke belakang; pertama kali 1 hari). Pemicuan lain tidak mengambil postingan baru, tetapi tetap
+mengekstrak postingan `pending` (maks. `EXTRACT_BATCH`) dan menandai lowongan kedaluwarsa. Saat jadwal
+dimatikan, tidak ada pengambilan baru. Selama jadwal belum pernah diatur, pipeline mengambil setiap
+pemicuan dengan `IG_TARGET_USERNAME` dan `AUTO_PUBLISH` seperti sebelumnya. Run manual dengan
+`--account`, `--days`, `--publish`, atau `--draft` mengabaikan jadwal.
+
 ## Review dan publish
 
 Secara default lowongan hasil AI langsung tayang; gunakan `reject` untuk menyembunyikan yang salah
@@ -150,6 +175,7 @@ setelah di-publish.
 ```bash
 bun run review                    # daftar draft per postingan + link Instagram
 bun run review recent [hari]      # lowongan yang tayang/berubah dalam N hari terakhir (default 3)
+bun run review stats              # jumlah jobs dan source_posts per status
 bun run review show <id>          # detail lengkap, termasuk teks poster (ocr_text)
 bun run review publish <id...>    # tampilkan ke publik
 bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah tayang)
@@ -159,6 +185,29 @@ bun run review reject <id...>     # sembunyikan (juga untuk menarik yang sudah t
 Untuk memperbaiki isi lowongan (mis. nama perusahaan salah baca), edit barisnya di Supabase
 Dashboard → Table Editor → `jobs`. Lowongan yang sudah tayang atau ditolak tidak ditimpa
 ekstraksi ulang.
+
+## Menu admin interaktif
+
+```bash
+bun run admin
+```
+
+Menu bernomor untuk perintah admin di atas tanpa perlu menghafal argumen: ringkasan data per
+status, lihat draft, lowongan yang baru tayang, detail, publish, reject, ambil lowongan dari akun
+Instagram, jadwal otomatis (lihat "Jadwal otomatis"), dan reset database (harus mengetik `HAPUS`).
+Tiap pilihan menjalankan script yang sama (`review`, `check-instagram`, `pipeline --once`,
+`schedule`, `reset`). Ringkasan saja: `bun run review stats`.
+
+**Ambil lowongan dari akun Instagram**:
+
+1. Masukkan username. Profil akun (nama, bio, followers, jumlah post, 5 postingan terbaru) ditampilkan.
+   Berhenti jika akun tidak ditemukan atau bukan akun Business/Creator (batas Business Discovery).
+2. Pilih periode: 1 hari, 7 hari, atau 1 bulan (30 hari) terakhir.
+3. Pilih hasil ekstraksi: langsung publish atau simpan sebagai draft untuk di-review (menimpa
+   `AUTO_PUBLISH` untuk run ini saja).
+4. Konfirmasi, lalu semua postingan pada periode itu disimpan (yang sudah ada dilewati) dan hingga 200
+   postingan `pending` diekstrak dengan Gemini. Maksimal 20 halaman (500 postingan) per run. Sisa
+   postingan diproses pipeline berikutnya atau dengan `bun run extract`.
 
 ## Reset database
 

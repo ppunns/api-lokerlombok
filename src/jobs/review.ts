@@ -67,6 +67,16 @@ export async function getJob(sql: SQL, id: string) {
   return job ?? null;
 }
 
+// Row counts per status, e.g. { jobs: { published: 12, draft: 3 }, source_posts: { processed: 10 } }.
+export async function dataSummary(sql: SQL) {
+  const toCounts = (rows: { status: string; n: number }[]) => Object.fromEntries(rows.map((r) => [r.status, r.n]));
+  const [jobs, posts] = await Promise.all([
+    sql`select publication_status as status, count(*)::int as n from public.jobs group by 1 order by 1`,
+    sql`select processing_status as status, count(*)::int as n from public.source_posts group by 1 order by 1`,
+  ]);
+  return { jobs: toCounts(jobs), source_posts: toCounts(posts) } as Record<"jobs" | "source_posts", Record<string, number>>;
+}
+
 export async function setPublicationStatus(sql: SQL, ids: string[], status: ReviewStatus): Promise<number> {
   if (ids.length === 0) return 0;
   const result = await sql`update public.jobs set publication_status = ${status} where id in ${sql(ids)}`;

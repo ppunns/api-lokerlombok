@@ -27,7 +27,7 @@ export type Extraction = z.infer<typeof extractionSchema>;
 
 const { $schema: _, ...responseJsonSchema } = z.toJSONSchema(extractionSchema) as Record<string, unknown>;
 
-const INSTRUCTIONS = `You extract job vacancies from one Instagram post of @lokerlombok, a job board for Lombok, NTB, Indonesia.
+const INSTRUCTIONS = `You extract job vacancies from one Instagram post of a job vacancy account for Lombok, NTB, Indonesia.
 You get the caption, the post date, and the poster image(s). Rules:
 - Transcribe all readable text from the images into ocr_text (null if there is none).
 - is_job_post is false for anything that is not a job vacancy (ads, promotions, greetings only); then jobs is [].

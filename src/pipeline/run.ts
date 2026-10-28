@@ -1,9 +1,10 @@
 import type { SQL } from "bun";
-import { collectNewPosts } from "../collector/collect";
+import { collectNewPosts, collectPostsSince } from "../collector/collect";
 import type { Extractor } from "../extraction/gemini";
 import { processPendingPosts } from "../extraction/process";
 import { expireJobs } from "../jobs/expire";
 import { InstagramApiError, type InstagramClient } from "../instagram/client";
+import { collectSinceFor, formatWita, isCollectDue, loadSchedule, markCollected, nextSlot } from "./schedule";
 
 export interface PipelineOptions {
   sql: SQL;
@@ -12,6 +13,12 @@ export interface PipelineOptions {
   extract: Extractor;
   extractLimit: number;
   autoPublish?: boolean;
+  // Manual backfill: collect every post since this date instead of stopping at the first known post.
+  collectSince?: Date;
+  // Follow pipeline_schedule when it has a row: its account, publish choice, and times decide whether
+  // this round collects. Without a row, every round collects with the options above.
+  useSchedule?: boolean;
+  now?: Date;
 }
 
 export function describeError(err: unknown): string {
@@ -45,9 +52,13 @@ export async function runPipelineOnce(options: PipelineOptions) {
   }
 }
 
-async function runRound({ sql, client, username, extract, extractLimit, autoPublish }: PipelineOptions) {
+async function runRound(options: PipelineOptions) {
+  const { sql, client, extract, extractLimit, now = new Date() } = options;
+  let { username, autoPublish, collectSince } = options;
   const result = {
-    collect: null as Awaited<ReturnType<typeof collectNewPosts>> | null,
+    collect: null as Awaited<ReturnType<typeof collectNewPosts | typeof collectPostsSince>> | null,
+    // Why this round did not collect, e.g. the next scheduled time has not come yet.
+    collectSkipped: null as string | null,
     collectError: null as string | null,
     extract: null as Awaited<ReturnType<typeof processPendingPosts>> | null,
     extractError: null as string | null,
@@ -56,7 +67,20 @@ async function runRound({ sql, client, username, extract, extractLimit, autoPubl
   };
 
   try {
-    result.collect = await collectNewPosts({ sql, client, username });
+    const schedule = options.useSchedule ? await loadSchedule(sql) : null;
+    if (schedule) {
+      username = schedule.account;
+      autoPublish = schedule.auto_publish;
+      if (!schedule.enabled) result.collectSkipped = "schedule is off";
+      else if (!isCollectDue(schedule, now)) result.collectSkipped = `not due, next at ${formatWita(nextSlot(schedule.run_times, now))}`;
+      else collectSince = collectSinceFor(schedule, now);
+    }
+    if (!result.collectSkipped) {
+      result.collect = collectSince
+        ? await collectPostsSince({ sql, client, username, since: collectSince })
+        : await collectNewPosts({ sql, client, username });
+      if (schedule) await markCollected(sql, now);
+    }
   } catch (err) {
     result.collectError = describeError(err);
   }

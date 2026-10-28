@@ -6,13 +6,13 @@ import { connectDb, POOL_MAX } from "../src/db";
 import { z } from "zod";
 import { collectNewPosts } from "../src/collector/collect";
 import { config } from "../src/config";
-import { createInstagramClient, InstagramApiError } from "../src/instagram/client";
+import { createInstagramClient, DEFAULT_TARGET_USERNAME, InstagramApiError, instagramUsername } from "../src/instagram/client";
 
 const env = z
   .object({
     IG_USER_ID: z.string().regex(/^\d+$/),
     IG_ACCESS_TOKEN: z.string().min(1),
-    IG_TARGET_USERNAME: z.string().min(1).default("lokerlombok"),
+    IG_TARGET_USERNAME: instagramUsername.default(DEFAULT_TARGET_USERNAME),
     COLLECT_CRON: z.string().default("*/15 * * * *"),
   })
   .parse(Bun.env);

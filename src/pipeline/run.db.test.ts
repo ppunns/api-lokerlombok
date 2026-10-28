@@ -5,6 +5,7 @@ import type { Extractor } from "../extraction/gemini";
 import { InstagramApiError, type InstagramClient, type InstagramMedia } from "../instagram/client";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
 import { describeError, PIPELINE_LOCK_KEY, runPipelineOnce } from "./run";
+import { loadSchedule, saveSchedule, setScheduleEnabled } from "./schedule";
 
 // No media_url, so extraction has no images to download in tests.
 const media = (id: number): InstagramMedia => ({
@@ -59,7 +60,7 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
     sql = connectLocalTestDb();
   });
   beforeEach(async () => {
-    await sql`truncate public.source_posts, public.jobs`;
+    await sql`truncate public.source_posts, public.jobs, public.pipeline_schedule`;
   });
   afterAll(async () => {
     await sql?.close();
@@ -72,6 +73,43 @@ describe.skipIf(!testDatabaseUrl)("runPipelineOnce (database)", () => {
     expect(r.extract).toMatchObject({ processed: 2, jobs: 2, stopped: null });
     const jobs = await sql`select publication_status from public.jobs`;
     expect(jobs.map((j: { publication_status: string }) => j.publication_status)).toEqual(["draft", "draft"]);
+  });
+
+  test("collectSince collects the whole period, past already known posts", async () => {
+    await round(opts(feedClient([media(3)])));
+    const since = new Date(Date.UTC(2026, 9, 25, 0, 2));
+    const r = await round({ ...opts(feedClient([media(4), media(3), media(2), media(1)])), collectSince: since });
+    expect(r.collect).toEqual({ in_range: 3, inserted: 2, pages: 1, complete: true });
+    expect(r.extract).toMatchObject({ processed: 2 });
+  });
+
+  test("schedule: collects when a time has passed, with its account and publish choice, then waits", async () => {
+    await saveSchedule(sql, { account: "bursalokerlombok", run_times: ["07:00"], auto_publish: false });
+    const now = new Date("2026-10-25T03:30:00Z"); // 11:30 WITA, after 07:00
+    const r = await round({ ...opts(feedClient([media(2), media(1)])), autoPublish: true, useSchedule: true, now });
+    expect(r).toMatchObject({ collectSkipped: null, collect: { inserted: 2 }, extract: { processed: 2 } });
+    expect(await sql`select distinct source_account from public.source_posts`).toEqual([{ source_account: "bursalokerlombok" }]);
+    expect(await sql`select distinct publication_status from public.jobs`).toEqual([{ publication_status: "draft" }]);
+    expect((await loadSchedule(sql))!.last_collected_at).toEqual(now);
+
+    // An hour later 07:00 is already covered: no collect until 07:00 tomorrow.
+    const later = await round({ ...opts(feedClient([media(3)])), useSchedule: true, now: new Date("2026-10-25T04:30:00Z") });
+    expect(later).toMatchObject({ collect: null, collectSkipped: "not due, next at 2026-10-26 07:00 WITA" });
+    expect((await sql`select count(*)::int n from public.source_posts`)[0].n).toBe(2);
+  });
+
+  test("without a schedule row every round collects; when it is off, pending posts are still extracted", async () => {
+    // extractLimit 0 leaves the collected post pending.
+    expect(await round({ ...opts(feedClient([media(1)])), useSchedule: true, extractLimit: 0 })).toMatchObject({
+      collectSkipped: null,
+      collect: { inserted: 1 },
+    });
+    await saveSchedule(sql, { account: "bursalokerlombok", run_times: ["07:00"], auto_publish: true });
+    await setScheduleEnabled(sql, false);
+
+    const r = await round({ ...opts(feedClient([media(2)])), useSchedule: true });
+    expect(r).toMatchObject({ collect: null, collectSkipped: "schedule is off", extract: { processed: 1 } });
+    expect((await sql`select count(*)::int n from public.source_posts`)[0].n).toBe(1);
   });
 
   test("autoPublish passes through the pipeline round", async () => {

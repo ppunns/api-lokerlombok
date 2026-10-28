@@ -5,7 +5,7 @@ import { jobInsertSchema } from "../schemas/job";
 import { connectLocalTestDb, testDatabaseUrl } from "../testing/local-db";
 import { upsertJobs } from "./import";
 import { createJobsRepository } from "./repository";
-import { listDrafts, listRecentlyPublished, resolveJobIds, setPublicationStatus } from "./review";
+import { dataSummary, listDrafts, listRecentlyPublished, resolveJobIds, setPublicationStatus } from "./review";
 
 describe.skipIf(!testDatabaseUrl)("job review (database)", () => {
   let sql: SQL;
@@ -28,6 +28,19 @@ describe.skipIf(!testDatabaseUrl)("job review (database)", () => {
   });
   afterAll(async () => {
     await sql?.close();
+  });
+
+  test("summarizes jobs and source posts per status", async () => {
+    await sql`truncate public.source_posts`;
+    await sql`
+      insert into public.source_posts (source_account, source_post_id, source_post_url, source_posted_at, media_type, processing_status)
+      values ('lokerlombok', '1', 'https://www.instagram.com/p/1/', now(), 'IMAGE', 'processed'),
+             ('lokerlombok', '2', 'https://www.instagram.com/p/2/', now(), 'IMAGE', 'pending')
+    `;
+    expect(await dataSummary(sql)).toEqual({
+      jobs: { draft: 3, published: 1 },
+      source_posts: { pending: 1, processed: 1 },
+    });
   });
 
   test("lists only drafts, newest post first, flagging passed deadlines", async () => {
