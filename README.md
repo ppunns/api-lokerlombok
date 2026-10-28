@@ -51,6 +51,7 @@ supabase/migrations/  migration SQL
 docs/database.md      schema tabel dan cara migration
 docs/instagram-access.md  validasi akses Instagram (Business Discovery)
 docs/frontend-prompt.md   kontrak API + brief untuk pengembangan frontend
+docs/deploy-debian.md     deploy ke server Debian sendiri (systemd + Caddy)
 ```
 
 ## API
@@ -234,6 +235,8 @@ Supabase). Rahasia disimpan di Secret Manager, tidak di image maupun repo.
 - **Pipeline** (Cloud Run Job + Cloud Scheduler tiap 15 menit): `bun scripts/pipeline.ts --once`,
   tanpa retry otomatis (retry ditangani pipeline sendiri). Run yang tumpang tindih dilewati lewat
   advisory lock Postgres, jadi postingan tidak diproses dua kali.
+
+Deploy ke server sendiri (Debian, systemd + Caddy): lihat [docs/deploy-debian.md](docs/deploy-debian.md).
 
 ## Testing
 
